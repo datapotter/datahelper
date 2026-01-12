@@ -1,20 +1,38 @@
 package xyz.jphil.datahelper;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Base interface for all DataHelper-generated interfaces.
- * Provides core MapLike-based serialization/deserialization with delegation pattern.
+ * Provides core property accessor methods that enable type-safe field access.
  *
- * <p>Generated interfaces implement the abstract property accessor methods,
- * while this base interface provides the delegated fromMapLike/toMapLike logic.</p>
+ * <p>Generated interfaces implement these abstract property accessor methods.
+ * Serialization/deserialization is provided by composable trait interfaces
+ * (e.g., DataHelper_Json_Trait, DataHelper_ArcadeDB_Trait) that build upon
+ * these property accessors.</p>
+ *
+ * <p>This interface contains ONLY the minimal property accessor contract.
+ * No serialization logic is included here - traits handle that.</p>
  */
 public interface DataHelper_I<E extends DataHelper_I<E>> {
 
     // ========== Abstract Methods (Implemented by Generated Code) ==========
+
+    /**
+     * Get the concrete class for this DataHelper instance.
+     * Compensates for type erasure in generics.
+     *
+     * <p>This method provides access to the actual runtime class, which is useful for:
+     * - Reflection: Inspecting fields, annotations, methods
+     * - Type safety: Using Class&lt;T&gt; instead of raw strings
+     * - Schema generation: Building database schemas from class metadata
+     * - Factory patterns: Instantiating new instances via reflection
+     * </p>
+     *
+     * @return the concrete class object (e.g., TestPersonDTO.class)
+     */
+    Class<?> dataClass();
 
     /**
      * Get all field names for this DTO.
@@ -55,23 +73,40 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
      * Create nested object for a property.
      * Generated code uses switch statement with direct instantiation (TeaVM-compatible).
      *
+     * <p>Default implementation throws UnsupportedOperationException.
+     * Hand-written DataHelper_I implementations must override this if they have nested DataHelper objects.</p>
+     *
      * @param propertyName the property name
      * @return new instance of nested object, or null if property is not a nested DataHelper object
+     * @throws UnsupportedOperationException if not overridden and called
      */
-    DataHelper_I<?> createNestedObject(String propertyName);
+    default DataHelper_I<?> createNestedObject(String propertyName) {
+        throw new UnsupportedOperationException(
+            "createNestedObject() not implemented for property: " + propertyName);
+    }
 
     /**
      * Create list element for a list property.
      * Generated code uses switch statement with direct instantiation (TeaVM-compatible).
      *
+     * <p>Default implementation throws UnsupportedOperationException.
+     * Hand-written DataHelper_I implementations must override this if they have List fields with DataHelper elements.</p>
+     *
      * @param propertyName the property name (must be a list field)
      * @return new instance of list element, or null if property is not a list of DataHelper objects
+     * @throws UnsupportedOperationException if not overridden and called
      */
-    DataHelper_I<?> createListElement(String propertyName);
+    default DataHelper_I<?> createListElement(String propertyName) {
+        throw new UnsupportedOperationException(
+            "createListElement() not implemented for property: " + propertyName);
+    }
 
     /**
      * Check if property is a list field.
      * Generated code uses simple equality check or switch.
+     *
+     * <p><strong>MUST be implemented</strong> - no default provided.
+     * Hand-written DataHelper_I implementations must explicitly return true/false.</p>
      *
      * @param propertyName the property name
      * @return true if property is a List
@@ -82,153 +117,100 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
      * Check if property is a nested DataHelper object field.
      * Generated code uses simple equality check or switch.
      *
+     * <p><strong>MUST be implemented</strong> - no default provided.
+     * Hand-written DataHelper_I implementations must explicitly return true/false.</p>
+     *
      * @param propertyName the property name
      * @return true if property is a DataHelper_I object
      */
     boolean isNestedObjectField(String propertyName);
 
-    // ========== Delegated Implementation: fromMapLike ==========
+    /**
+     * Check if property is a map field.
+     * Generated code uses simple equality check or switch.
+     *
+     * <p><strong>MUST be implemented</strong> - no default provided.
+     * Hand-written DataHelper_I implementations must explicitly return true/false.</p>
+     *
+     * @param propertyName the property name
+     * @return true if property is a Map
+     */
+    boolean isMapField(String propertyName);
 
     /**
-     * Populate this DTO from a MapLike structure.
-     * This is the core method that works across all platforms (JVM, TeaVM, etc.).
+     * Get map key type for a property.
+     * Generated code uses switch statement.
      *
-     * <p>Implementation uses the generated property accessor methods to populate fields,
-     * enabling version independence and cross-platform compatibility.</p>
+     * <p>Default implementation throws UnsupportedOperationException.
+     * Hand-written DataHelper_I implementations must override this if they have Map fields.</p>
      *
-     * @param mapLike the map-like structure
-     * @return this instance for chaining
+     * @param propertyName the property name
+     * @return the map key type, or null if not a map field
+     * @throws UnsupportedOperationException if not overridden and called
      */
-    @SuppressWarnings("unchecked")
-    default E fromMapLike(MapLike mapLike) {
-        for (String fieldName : fieldNames()) {
-            Class<?> fieldType = getPropertyType(fieldName);
-            Object value = mapLike.getTyped(fieldName, fieldType);
-
-            if (value == null) continue;
-
-            if (value instanceof MapLike && isNestedObjectField(fieldName)) {
-                // Nested DataHelper object
-                DataHelper_I<?> nested = createNestedObject(fieldName);
-                if (nested != null) {
-                    nested.fromMapLike((MapLike) value);
-                    setPropertyByName(fieldName, nested);
-                }
-            } else if (value instanceof ArrayLike && isListField(fieldName)) {
-                // List of objects
-                ArrayLike arrayLike = (ArrayLike) value;
-                List<Object> list = new ArrayList<>();
-
-                for (int i = 0; i < arrayLike.size(); i++) {
-                    Object item = arrayLike.get(i);
-                    if (item instanceof MapLike) {
-                        // List element is a DataHelper object
-                        DataHelper_I<?> element = createListElement(fieldName);
-                        if (element != null) {
-                            element.fromMapLike((MapLike) item);
-                            list.add(element);
-                        }
-                    } else {
-                        // List of primitives/simple types
-                        list.add(item);
-                    }
-                }
-
-                setPropertyByName(fieldName, list);
-            } else {
-                // Simple field - may need type conversion
-                setPropertyByName(fieldName, convertType(value, fieldType));
-            }
-        }
-
-        return (E) this;
-    }
-
-    // ========== Delegated Implementation: toMapLike ==========
-
-    /**
-     * Convert this DTO to a MapLike structure.
-     *
-     * @param deep if true, recursively serialize nested objects and lists;
-     *             if false, nested objects are included as-is (shallow)
-     * @return the map-like structure
-     */
-    default MapLike toMapLike(boolean deep) {
-        MapLike mapLike = createMapLike();
-
-        for (String fieldName : fieldNames()) {
-            Object value = getPropertyByName(fieldName);
-
-            if (value == null) continue;
-
-            if (deep && value instanceof DataHelper_I) {
-                // Deep serialize nested object
-                mapLike.set(fieldName, ((DataHelper_I<?>) value).toMapLike(true));
-            } else if (deep && value instanceof List && isListField(fieldName)) {
-                // Deep serialize list
-                List<?> list = (List<?>) value;
-                ArrayLike arrayLike = createArrayLike();
-
-                for (int i = 0; i < list.size(); i++) {
-                    Object item = list.get(i);
-                    if (item instanceof DataHelper_I) {
-                        arrayLike.set(i, ((DataHelper_I<?>) item).toMapLike(true));
-                    } else {
-                        arrayLike.set(i, item);
-                    }
-                }
-
-                mapLike.set(fieldName, arrayLike);
-            } else {
-                // Shallow mode or simple field
-                mapLike.set(fieldName, value);
-            }
-        }
-
-        return mapLike;
-    }
-
-    // ========== Convenience: JVM Map Support (Built-in) ==========
-
-    /**
-     * Populate this DTO from a java.util.Map.
-     * This is a convenience wrapper around fromMapLike().
-     *
-     * @param map the map
-     * @return this instance for chaining
-     */
-    default E fromMap(Map<String, Object> map) {
-        return fromMapLike(JvmMapLike.wrap(map));
+    default Class<?> getMapKeyType(String propertyName) {
+        throw new UnsupportedOperationException(
+            "getMapKeyType() not implemented for property: " + propertyName);
     }
 
     /**
-     * Convert this DTO to a java.util.Map.
-     * This is a convenience wrapper around toMapLike().
+     * Get map value type for a property.
+     * Generated code uses switch statement.
      *
-     * @param deep if true, recursively serialize nested objects
-     * @return the Map
+     * <p>Default implementation throws UnsupportedOperationException.
+     * Hand-written DataHelper_I implementations must override this if they have Map fields.</p>
+     *
+     * @param propertyName the property name
+     * @return the map value type, or null if not a map field
+     * @throws UnsupportedOperationException if not overridden and called
      */
-    default Map<String, Object> toMap(boolean deep) {
-        MapLike mapLike = toMapLike(deep);
-        if (mapLike instanceof JvmMapLike) {
-            return ((JvmMapLike) mapLike).unwrap();
-        }
-        // Fallback: convert to Map
-        Map<String, Object> result = new LinkedHashMap<>();
-        for (String key : mapLike.keys()) {
-            result.put(key, mapLike.get(key));
-        }
-        return result;
+    default Class<?> getMapValueType(String propertyName) {
+        throw new UnsupportedOperationException(
+            "getMapValueType() not implemented for property: " + propertyName);
     }
 
     /**
-     * Convert this DTO to a java.util.Map (shallow).
-     * Convenience method that calls toMap(false).
+     * Create map instance for a property.
+     * Generated code uses switch statement with direct instantiation.
      *
-     * @return the Map (shallow serialization)
+     * <p>Default implementation throws UnsupportedOperationException.
+     * Hand-written DataHelper_I implementations must override this if they have Map fields.</p>
+     *
+     * @param propertyName the property name
+     * @return new Map instance, or null if not a map field
+     * @throws UnsupportedOperationException if not overridden and called
      */
-    default Map<String, Object> toMap() {
-        return toMap(false);
+    default Map<?, ?> createMapInstance(String propertyName) {
+        throw new UnsupportedOperationException(
+            "createMapInstance() not implemented for property: " + propertyName);
+    }
+
+    /**
+     * Check if map value is a DataHelper type.
+     * Generated code uses simple equality check or switch.
+     *
+     * <p><strong>MUST be implemented</strong> - no default provided.
+     * Hand-written DataHelper_I implementations must explicitly return true/false.</p>
+     *
+     * @param propertyName the property name
+     * @return true if map value type is DataHelper_I
+     */
+    boolean isMapValueDataHelper(String propertyName);
+
+    /**
+     * Create map value element for a map property.
+     * Generated code uses switch statement with direct instantiation (TeaVM-compatible).
+     *
+     * <p>Default implementation throws UnsupportedOperationException.
+     * Hand-written DataHelper_I implementations must override this if they have Map fields with DataHelper values.</p>
+     *
+     * @param propertyName the property name (must be a map field with DataHelper values)
+     * @return new instance of map value element, or null if property is not a map of DataHelper objects
+     * @throws UnsupportedOperationException if not overridden and called
+     */
+    default DataHelper_I<?> createMapValueElement(String propertyName) {
+        throw new UnsupportedOperationException(
+            "createMapValueElement() not implemented for property: " + propertyName);
     }
 
     // ========== Helper Methods ==========
@@ -236,6 +218,9 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
     /**
      * Convert value to target type.
      * Handles common numeric conversions (Number to Integer/Long/Double/Float).
+     *
+     * <p>This helper method is used by serialization traits to convert values
+     * when reading from external formats (JSON, databases, etc.).</p>
      *
      * @param value the value to convert
      * @param targetType the target type
@@ -245,6 +230,30 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
         if (value == null) return null;
         if (targetType == null) return value;
         if (targetType.isInstance(value)) return value;
+
+        // String to numeric conversions (for Map keys, JSON parsing, etc.)
+        if (value instanceof String) {
+            String str = (String) value;
+            try {
+                if (targetType == Integer.class || targetType == int.class) {
+                    return Integer.parseInt(str);
+                } else if (targetType == Long.class || targetType == long.class) {
+                    return Long.parseLong(str);
+                } else if (targetType == Double.class || targetType == double.class) {
+                    return Double.parseDouble(str);
+                } else if (targetType == Float.class || targetType == float.class) {
+                    return Float.parseFloat(str);
+                } else if (targetType == Short.class || targetType == short.class) {
+                    return Short.parseShort(str);
+                } else if (targetType == Byte.class || targetType == byte.class) {
+                    return Byte.parseByte(str);
+                } else if (targetType == Boolean.class || targetType == boolean.class) {
+                    return Boolean.parseBoolean(str);
+                }
+            } catch (NumberFormatException e) {
+                // Fall through to return original value
+            }
+        }
 
         // Numeric conversions
         if (value instanceof Number) {
@@ -265,27 +274,5 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
         }
 
         return value;
-    }
-
-    /**
-     * Create a new MapLike instance.
-     * Default implementation creates JvmMapLike.
-     * Platform-specific implementations can override.
-     *
-     * @return new MapLike instance
-     */
-    static MapLike createMapLike() {
-        return new JvmMapLike(new LinkedHashMap<>());
-    }
-
-    /**
-     * Create a new ArrayLike instance.
-     * Default implementation creates JvmArrayLike.
-     * Platform-specific implementations can override.
-     *
-     * @return new ArrayLike instance
-     */
-    static ArrayLike createArrayLike() {
-        return new JvmArrayLike(new ArrayList<>());
     }
 }
