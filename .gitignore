@@ -83,12 +83,21 @@ log/
 *.log.*
 *.lck
 
+# ArcadeDB specific files
+*.bucket
+*.dict
+*.umtidx
+backups/
+**/backups/
+databases/
+**/databases/
+
 # Temporary files
 *.tmp
 *.temp
 fileHistory/
 
-# AI-generated documentation (should not be committed as either auto-generated or possibly user personal notes), README.md is usually the (default) publicly sharable documentation 
+# AI-generated documentation (should not be committed as either auto-generated or possibly user personal notes), README.md is usually the (default) publicly sharable documentation
 # User should manually configure these
 *.fullcode.md
 *.symbols.md
@@ -100,9 +109,8 @@ CLAUDE.md
 # vision.md
 # pitfalls.md
 notes/
-# test-files
-# test-scripts
-# reference_docs_and_examples
-# notes
-test-logs
-prp
+test-files/
+test-scripts/
+reference_docs_and_examples/
+test-logs/
+prp/
