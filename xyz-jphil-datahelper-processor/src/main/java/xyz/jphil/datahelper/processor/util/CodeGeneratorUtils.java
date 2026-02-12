@@ -178,7 +178,7 @@ public class CodeGeneratorUtils {
      */
     public static MethodSpec createGetPropertyByNameMethod(List<FieldInfo> fields, ProcessorUtils utils) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("getPropertyByName")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(Object.class);
@@ -210,7 +210,7 @@ public class CodeGeneratorUtils {
      */
     public static MethodSpec createSetPropertyByNameMethod(List<FieldInfo> fields, ProcessorUtils utils) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("setPropertyByName")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class)
                         .addMember("value", "$S", "unchecked")
@@ -243,7 +243,7 @@ public class CodeGeneratorUtils {
      */
     public static MethodSpec createGetPropertyTypeMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("getPropertyType")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)));
@@ -274,7 +274,7 @@ public class CodeGeneratorUtils {
      */
     public static MethodSpec createFieldNamesMethod() {
         return MethodSpec.methodBuilder("fieldNames")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .returns(ParameterizedTypeName.get(ClassName.get(List.class), ClassName.get(String.class)))
                 .addStatement("return FIELDS.stream().map($T::name).toList()",
@@ -287,7 +287,7 @@ public class CodeGeneratorUtils {
      */
     public static MethodSpec createDataClassMethod(String packageName, String className) {
         return MethodSpec.methodBuilder("dataClass")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)))
                 .addStatement("return $T.class", ClassName.get(packageName, className))
@@ -299,7 +299,7 @@ public class CodeGeneratorUtils {
      */
     public static MethodSpec createNestedObjectMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("createNestedObject")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(
@@ -330,7 +330,7 @@ public class CodeGeneratorUtils {
      */
     public static MethodSpec createListElementMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("createListElement")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(
@@ -361,7 +361,7 @@ public class CodeGeneratorUtils {
      */
     public static MethodSpec createIsListFieldMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("isListField")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(boolean.class);
@@ -392,7 +392,7 @@ public class CodeGeneratorUtils {
      */
     public static MethodSpec createIsNestedObjectFieldMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("isNestedObjectField")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(boolean.class);
@@ -432,7 +432,7 @@ public class CodeGeneratorUtils {
 
     private static MethodSpec createIsMapFieldMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("isMapField")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(boolean.class);
@@ -460,7 +460,7 @@ public class CodeGeneratorUtils {
 
     private static MethodSpec createGetMapKeyTypeMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("getMapKeyType")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)));
@@ -486,7 +486,7 @@ public class CodeGeneratorUtils {
 
     private static MethodSpec createGetMapValueTypeMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("getMapValueType")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)));
@@ -512,7 +512,7 @@ public class CodeGeneratorUtils {
 
     private static MethodSpec createCreateMapInstanceMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("createMapInstance")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(
@@ -542,7 +542,7 @@ public class CodeGeneratorUtils {
 
     private static MethodSpec createIsMapValueDataHelperMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("isMapValueDataHelper")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(boolean.class);
@@ -570,7 +570,7 @@ public class CodeGeneratorUtils {
 
     private static MethodSpec createCreateMapValueElementMethod(List<FieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("createMapValueElement")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(
