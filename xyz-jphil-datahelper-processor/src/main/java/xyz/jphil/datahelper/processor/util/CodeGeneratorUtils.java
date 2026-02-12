@@ -18,6 +18,16 @@ import java.util.Map;
 public class CodeGeneratorUtils {
 
     /**
+     * Returns the correct modifiers for a method with an implementation body.
+     * Interface methods with bodies need {@code default}; class methods just need {@code public}.
+     */
+    private static Modifier[] implModifiers(boolean isInterface) {
+        return isInterface
+                ? new Modifier[]{Modifier.PUBLIC, Modifier.DEFAULT}
+                : new Modifier[]{Modifier.PUBLIC};
+    }
+
+    /**
      * Extracts the raw type from a TypeName.
      * For parameterized types like List<String>, returns List.
      * For simple types like String, returns String.
@@ -176,9 +186,9 @@ public class CodeGeneratorUtils {
     /**
      * Generate getPropertyByName(String) method using switch expression.
      */
-    public static MethodSpec createGetPropertyByNameMethod(List<FieldInfo> fields, ProcessorUtils utils) {
+    public static MethodSpec createGetPropertyByNameMethod(List<FieldInfo> fields, ProcessorUtils utils, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("getPropertyByName")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(Object.class);
@@ -208,9 +218,9 @@ public class CodeGeneratorUtils {
     /**
      * Generate setPropertyByName(String, Object) method using switch statement.
      */
-    public static MethodSpec createSetPropertyByNameMethod(List<FieldInfo> fields, ProcessorUtils utils) {
+    public static MethodSpec createSetPropertyByNameMethod(List<FieldInfo> fields, ProcessorUtils utils, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("setPropertyByName")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class)
                         .addMember("value", "$S", "unchecked")
@@ -241,9 +251,9 @@ public class CodeGeneratorUtils {
     /**
      * Generate getPropertyType(String) method.
      */
-    public static MethodSpec createGetPropertyTypeMethod(List<FieldInfo> fields) {
+    public static MethodSpec createGetPropertyTypeMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("getPropertyType")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)));
@@ -272,9 +282,9 @@ public class CodeGeneratorUtils {
     /**
      * Generate fieldNames() method.
      */
-    public static MethodSpec createFieldNamesMethod() {
+    public static MethodSpec createFieldNamesMethod(boolean isInterface) {
         return MethodSpec.methodBuilder("fieldNames")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .returns(ParameterizedTypeName.get(ClassName.get(List.class), ClassName.get(String.class)))
                 .addStatement("return FIELDS.stream().map($T::name).toList()",
@@ -285,9 +295,9 @@ public class CodeGeneratorUtils {
     /**
      * Generate dataClass() method.
      */
-    public static MethodSpec createDataClassMethod(String packageName, String className) {
+    public static MethodSpec createDataClassMethod(String packageName, String className, boolean isInterface) {
         return MethodSpec.methodBuilder("dataClass")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)))
                 .addStatement("return $T.class", ClassName.get(packageName, className))
@@ -297,9 +307,9 @@ public class CodeGeneratorUtils {
     /**
      * Generate createNestedObject(String) method.
      */
-    public static MethodSpec createNestedObjectMethod(List<FieldInfo> fields) {
+    public static MethodSpec createNestedObjectMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("createNestedObject")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(
@@ -328,9 +338,9 @@ public class CodeGeneratorUtils {
     /**
      * Generate createListElement(String) method.
      */
-    public static MethodSpec createListElementMethod(List<FieldInfo> fields) {
+    public static MethodSpec createListElementMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("createListElement")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(
@@ -359,9 +369,9 @@ public class CodeGeneratorUtils {
     /**
      * Generate isListField(String) method.
      */
-    public static MethodSpec createIsListFieldMethod(List<FieldInfo> fields) {
+    public static MethodSpec createIsListFieldMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("isListField")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(boolean.class);
@@ -390,9 +400,9 @@ public class CodeGeneratorUtils {
     /**
      * Generate isNestedObjectField(String) method.
      */
-    public static MethodSpec createIsNestedObjectFieldMethod(List<FieldInfo> fields) {
+    public static MethodSpec createIsNestedObjectFieldMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("isNestedObjectField")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(boolean.class);
@@ -421,18 +431,18 @@ public class CodeGeneratorUtils {
     /**
      * Generate Map-related methods (6 methods for Map support).
      */
-    public static void addMapMethods(TypeSpec.Builder builder, List<FieldInfo> fields) {
-        builder.addMethod(createIsMapFieldMethod(fields));
-        builder.addMethod(createGetMapKeyTypeMethod(fields));
-        builder.addMethod(createGetMapValueTypeMethod(fields));
-        builder.addMethod(createCreateMapInstanceMethod(fields));
-        builder.addMethod(createIsMapValueDataHelperMethod(fields));
-        builder.addMethod(createCreateMapValueElementMethod(fields));
+    public static void addMapMethods(TypeSpec.Builder builder, List<FieldInfo> fields, boolean isInterface) {
+        builder.addMethod(createIsMapFieldMethod(fields, isInterface));
+        builder.addMethod(createGetMapKeyTypeMethod(fields, isInterface));
+        builder.addMethod(createGetMapValueTypeMethod(fields, isInterface));
+        builder.addMethod(createCreateMapInstanceMethod(fields, isInterface));
+        builder.addMethod(createIsMapValueDataHelperMethod(fields, isInterface));
+        builder.addMethod(createCreateMapValueElementMethod(fields, isInterface));
     }
 
-    private static MethodSpec createIsMapFieldMethod(List<FieldInfo> fields) {
+    private static MethodSpec createIsMapFieldMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("isMapField")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(boolean.class);
@@ -458,9 +468,9 @@ public class CodeGeneratorUtils {
         return builder.build();
     }
 
-    private static MethodSpec createGetMapKeyTypeMethod(List<FieldInfo> fields) {
+    private static MethodSpec createGetMapKeyTypeMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("getMapKeyType")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)));
@@ -484,9 +494,9 @@ public class CodeGeneratorUtils {
         return builder.build();
     }
 
-    private static MethodSpec createGetMapValueTypeMethod(List<FieldInfo> fields) {
+    private static MethodSpec createGetMapValueTypeMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("getMapValueType")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)));
@@ -510,9 +520,9 @@ public class CodeGeneratorUtils {
         return builder.build();
     }
 
-    private static MethodSpec createCreateMapInstanceMethod(List<FieldInfo> fields) {
+    private static MethodSpec createCreateMapInstanceMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("createMapInstance")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(
@@ -540,9 +550,9 @@ public class CodeGeneratorUtils {
         return builder.build();
     }
 
-    private static MethodSpec createIsMapValueDataHelperMethod(List<FieldInfo> fields) {
+    private static MethodSpec createIsMapValueDataHelperMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("isMapValueDataHelper")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(boolean.class);
@@ -568,9 +578,9 @@ public class CodeGeneratorUtils {
         return builder.build();
     }
 
-    private static MethodSpec createCreateMapValueElementMethod(List<FieldInfo> fields) {
+    private static MethodSpec createCreateMapValueElementMethod(List<FieldInfo> fields, boolean isInterface) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("createMapValueElement")
-                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .returns(ParameterizedTypeName.get(

@@ -164,34 +164,34 @@ public class DataHelperProcessor extends AbstractProcessor {
         // Using shared CodeGeneratorUtils
 
         // 0. dataClass()
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createDataClassMethod(packageName, className));
+        interfaceBuilder.addMethod(CodeGeneratorUtils.createDataClassMethod(packageName, className, true));
 
         // 1. fieldNames()
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createFieldNamesMethod());
+        interfaceBuilder.addMethod(CodeGeneratorUtils.createFieldNamesMethod(true));
 
         // 2. getPropertyByName(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createGetPropertyByNameMethod(fields, utils));
+        interfaceBuilder.addMethod(CodeGeneratorUtils.createGetPropertyByNameMethod(fields, utils, true));
 
         // 3. setPropertyByName(String, Object)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createSetPropertyByNameMethod(fields, utils));
+        interfaceBuilder.addMethod(CodeGeneratorUtils.createSetPropertyByNameMethod(fields, utils, true));
 
         // 4. getPropertyType(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createGetPropertyTypeMethod(fields));
+        interfaceBuilder.addMethod(CodeGeneratorUtils.createGetPropertyTypeMethod(fields, true));
 
         // 5. createNestedObject(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createNestedObjectMethod(fields));
+        interfaceBuilder.addMethod(CodeGeneratorUtils.createNestedObjectMethod(fields, true));
 
         // 6. createListElement(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createListElementMethod(fields));
+        interfaceBuilder.addMethod(CodeGeneratorUtils.createListElementMethod(fields, true));
 
         // 7. isListField(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createIsListFieldMethod(fields));
+        interfaceBuilder.addMethod(CodeGeneratorUtils.createIsListFieldMethod(fields, true));
 
         // 8. isNestedObjectField(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createIsNestedObjectFieldMethod(fields));
+        interfaceBuilder.addMethod(CodeGeneratorUtils.createIsNestedObjectFieldMethod(fields, true));
 
         // 9-14. Map support methods
-        CodeGeneratorUtils.addMapMethods(interfaceBuilder, fields);
+        CodeGeneratorUtils.addMapMethods(interfaceBuilder, fields, true);
 
         // Build and write the file
         TypeSpec interfaceSpec = interfaceBuilder.build();
