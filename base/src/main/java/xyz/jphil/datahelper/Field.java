@@ -39,14 +39,14 @@ package xyz.jphil.datahelper;
 public final class Field<E extends DataHelper_I<E>, T>
         implements Field_I<E, T> {
     
-    private final String name;
+    public final String __ /*name*/;
     private final Class<T> type;
 
     public Field(String name, Class<T> type) {
-        this.name = name; this.type = type;
+        this.__ /*this.name*/ = name; this.type = type;
     }
 
-    @Override public String name() { return name; }
+    @Override public String name() { return __ ;/*name;*/ }
     @Override public Class<T> type() { return type; }
 
     
@@ -72,8 +72,9 @@ public final class Field<E extends DataHelper_I<E>, T>
      */
     @Override
     public String toString() {
-        return "Field[" + name + ": " + type.getSimpleName() + "]";
+        return "Field[" + __ /*name*/ + ": " + type.getSimpleName() + "]";
     }
     
-    public final String __ = name();
+    //public final String __ = name();
+    //get initialized to null forever.
 }
