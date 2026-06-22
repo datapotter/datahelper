@@ -1,55 +1,24 @@
 package xyz.jphil.datahelper;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- * Base interface for all DataHelper-generated interfaces.
- * Provides core property accessor methods that enable type-safe field access.
+ * Full read+write contract for all DataHelper-generated interfaces.
  *
- * <p>Generated interfaces implement these abstract property accessor methods.
- * Serialization/deserialization is provided by composable trait interfaces
- * (e.g., DataHelper_Json_Trait, DataHelper_ArcadeDB_Trait) that build upon
- * these property accessors.</p>
+ * <p>Extends {@link DataHelper_IR} (the readable contract) with the write side:
+ * {@code setPropertyByName} and the {@code create*} factory methods used while
+ * deserializing into a mutable instance. Mutable DTOs and their sealed {@code _A}
+ * bases implement this; immutable {@code _R} record projections implement only
+ * {@link DataHelper_IR}.</p>
  *
- * <p>This interface contains ONLY the minimal property accessor contract.
- * No serialization logic is included here - traits handle that.</p>
+ * <p>This interface contains ONLY the property accessor contract. Serialization is
+ * provided by composable trait interfaces (e.g., Json, ArcadeDB) that build upon
+ * these accessors.</p>
  */
-public interface DataHelper_I<E extends DataHelper_I<E>> {
+public interface DataHelper_I<E extends DataHelper_I<E>> extends DataHelper_IR<E> {
 
-    // ========== Abstract Methods (Implemented by Generated Code) ==========
-
-    /**
-     * Get the concrete class for this DataHelper instance.
-     * Compensates for type erasure in generics.
-     *
-     * <p>This method provides access to the actual runtime class, which is useful for:
-     * - Reflection: Inspecting fields, annotations, methods
-     * - Type safety: Using Class&lt;T&gt; instead of raw strings
-     * - Schema generation: Building database schemas from class metadata
-     * - Factory patterns: Instantiating new instances via reflection
-     * </p>
-     *
-     * @return the concrete class object (e.g., TestPersonDTO.class)
-     */
-    Class<?> dataClass();
-
-    /**
-     * Get all field names for this DTO.
-     * Generated code returns an immutable List for safety.
-     *
-     * @return list of field names
-     */
-    List<String> fieldNames();
-
-    /**
-     * Get property value by name.
-     * Generated code uses switch statement for performance.
-     *
-     * @param propertyName the property name
-     * @return the property value, or null if not found
-     */
-    Object getPropertyByName(String propertyName);
+    // ========== Abstract / Default Write Methods (Implemented by Generated Code) ==========
 
     /**
      * Set property value by name.
@@ -61,20 +30,11 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
     void setPropertyByName(String propertyName, Object value);
 
     /**
-     * Get property type by name.
-     * Generated code uses switch statement for performance.
-     *
-     * @param propertyName the property name
-     * @return the property type, or null if not found
-     */
-    Class<?> getPropertyType(String propertyName);
-
-    /**
      * Create nested object for a property.
      * Generated code uses switch statement with direct instantiation (TeaVM-compatible).
      *
      * <p>Default implementation throws UnsupportedOperationException.
-     * Hand-written DataHelper_I implementations must override this if they have nested DataHelper objects.</p>
+     * Hand-written implementations must override this if they have nested DataHelper objects.</p>
      *
      * @param propertyName the property name
      * @return new instance of nested object, or null if property is not a nested DataHelper object
@@ -90,7 +50,7 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
      * Generated code uses switch statement with direct instantiation (TeaVM-compatible).
      *
      * <p>Default implementation throws UnsupportedOperationException.
-     * Hand-written DataHelper_I implementations must override this if they have List fields with DataHelper elements.</p>
+     * Hand-written implementations must override this if they have List fields with DataHelper elements.</p>
      *
      * @param propertyName the property name (must be a list field)
      * @return new instance of list element, or null if property is not a list of DataHelper objects
@@ -102,79 +62,11 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
     }
 
     /**
-     * Check if property is a list field.
-     * Generated code uses simple equality check or switch.
-     *
-     * <p><strong>MUST be implemented</strong> - no default provided.
-     * Hand-written DataHelper_I implementations must explicitly return true/false.</p>
-     *
-     * @param propertyName the property name
-     * @return true if property is a List
-     */
-    boolean isListField(String propertyName);
-
-    /**
-     * Check if property is a nested DataHelper object field.
-     * Generated code uses simple equality check or switch.
-     *
-     * <p><strong>MUST be implemented</strong> - no default provided.
-     * Hand-written DataHelper_I implementations must explicitly return true/false.</p>
-     *
-     * @param propertyName the property name
-     * @return true if property is a DataHelper_I object
-     */
-    boolean isNestedObjectField(String propertyName);
-
-    /**
-     * Check if property is a map field.
-     * Generated code uses simple equality check or switch.
-     *
-     * <p><strong>MUST be implemented</strong> - no default provided.
-     * Hand-written DataHelper_I implementations must explicitly return true/false.</p>
-     *
-     * @param propertyName the property name
-     * @return true if property is a Map
-     */
-    boolean isMapField(String propertyName);
-
-    /**
-     * Get map key type for a property.
-     * Generated code uses switch statement.
-     *
-     * <p>Default implementation throws UnsupportedOperationException.
-     * Hand-written DataHelper_I implementations must override this if they have Map fields.</p>
-     *
-     * @param propertyName the property name
-     * @return the map key type, or null if not a map field
-     * @throws UnsupportedOperationException if not overridden and called
-     */
-    default Class<?> getMapKeyType(String propertyName) {
-        throw new UnsupportedOperationException(
-            "getMapKeyType() not implemented for property: " + propertyName);
-    }
-
-    /**
-     * Get map value type for a property.
-     * Generated code uses switch statement.
-     *
-     * <p>Default implementation throws UnsupportedOperationException.
-     * Hand-written DataHelper_I implementations must override this if they have Map fields.</p>
-     *
-     * @param propertyName the property name
-     * @return the map value type, or null if not a map field
-     * @throws UnsupportedOperationException if not overridden and called
-     */
-    default Class<?> getMapValueType(String propertyName) {
-        throw new UnsupportedOperationException(
-            "getMapValueType() not implemented for property: " + propertyName);
-    }
-
-    /**
      * Create map instance for a property.
      * Generated code uses switch statement with direct instantiation.
      *
      * <p>Default implementation throws UnsupportedOperationException.
-     * Hand-written DataHelper_I implementations must override this if they have Map fields.</p>
+     * Hand-written implementations must override this if they have Map fields.</p>
      *
      * @param propertyName the property name
      * @return new Map instance, or null if not a map field
@@ -186,23 +78,11 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
     }
 
     /**
-     * Check if map value is a DataHelper type.
-     * Generated code uses simple equality check or switch.
-     *
-     * <p><strong>MUST be implemented</strong> - no default provided.
-     * Hand-written DataHelper_I implementations must explicitly return true/false.</p>
-     *
-     * @param propertyName the property name
-     * @return true if map value type is DataHelper_I
-     */
-    boolean isMapValueDataHelper(String propertyName);
-
-    /**
      * Create map value element for a map property.
      * Generated code uses switch statement with direct instantiation (TeaVM-compatible).
      *
      * <p>Default implementation throws UnsupportedOperationException.
-     * Hand-written DataHelper_I implementations must override this if they have Map fields with DataHelper values.</p>
+     * Hand-written implementations must override this if they have Map fields with DataHelper values.</p>
      *
      * @param propertyName the property name (must be a map field with DataHelper values)
      * @return new instance of map value element, or null if property is not a map of DataHelper objects
@@ -221,6 +101,10 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
      *
      * <p>This helper method is used by serialization traits to convert values
      * when reading from external formats (JSON, databases, etc.).</p>
+     *
+     * <p>Kept on {@code DataHelper_I} (not relocated to {@link DataHelper_IR}) so all
+     * generated {@code DataHelper_I.convertType(...)} call sites keep resolving — static
+     * interface methods are not inherited.</p>
      *
      * @param value the value to convert
      * @param targetType the target type
@@ -274,5 +158,73 @@ public interface DataHelper_I<E extends DataHelper_I<E>> {
         }
 
         return value;
+    }
+
+    // ========== Generic Object-method Helpers ==========
+    // These build on the readable accessors (DataHelper_IR) so generated code can delegate
+    // equals/hashCode/toString to a single implementation (no per-field codegen). Grounded on
+    // DataHelper_IR so they also apply to immutable record projections, not just mutable DTOs.
+
+    /**
+     * Generic value-based equality over all fields.
+     *
+     * <p>Two instances are equal iff they share the same {@link DataHelper_IR#dataClass()} and
+     * every field value (by {@link DataHelper_IR#fieldNames()}) is equal via {@link Objects#equals}.
+     * Nested DataHelper/List/Map values compare by their own {@code equals}.</p>
+     *
+     * <p>Intended for {@code Object.equals(Object)} delegation in generated mutable code.
+     * Caveat: because equality is over mutable fields, a mutable DTO's equality (and
+     * {@link #hashCode(DataHelper_IR)}) changes if a field is mutated while held in a
+     * hash-based collection. (The {@code _R} record projection has stable value semantics.)</p>
+     *
+     * @param self  this DataHelper instance (the caller)
+     * @param other the object to compare against
+     * @return true if {@code other} is a DataHelper of the same data class with equal field values
+     */
+    static boolean equals(DataHelper_IR<?> self, Object other) {
+        if (self == other) return true;
+        if (self == null || other == null) return false;
+        if (!(other instanceof DataHelper_IR<?> that)) return false;
+        if (self.dataClass() != that.dataClass()) return false;
+        for (String fieldName : self.fieldNames()) {
+            if (!Objects.equals(self.getPropertyByName(fieldName), that.getPropertyByName(fieldName))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Generic field-based hash code, consistent with {@link #equals(DataHelper_IR, Object)}.
+     *
+     * @param self this DataHelper instance
+     * @return a hash code derived from all field values
+     */
+    static int hashCode(DataHelper_IR<?> self) {
+        if (self == null) return 0;
+        int result = 1;
+        for (String fieldName : self.fieldNames()) {
+            Object value = self.getPropertyByName(fieldName);
+            result = 31 * result + (value == null ? 0 : value.hashCode());
+        }
+        return result;
+    }
+
+    /**
+     * Generic string representation: {@code SimpleClassName{field1=value1, field2=value2}}.
+     *
+     * @param self this DataHelper instance
+     * @return a readable representation listing all fields
+     */
+    static String toString(DataHelper_IR<?> self) {
+        if (self == null) return "null";
+        StringBuilder sb = new StringBuilder(self.dataClass().getSimpleName()).append('{');
+        boolean first = true;
+        for (String fieldName : self.fieldNames()) {
+            if (!first) sb.append(", ");
+            first = false;
+            sb.append(fieldName).append('=').append(self.getPropertyByName(fieldName));
+        }
+        return sb.append('}').toString();
     }
 }

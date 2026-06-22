@@ -7,8 +7,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * JSON trait for DataHelper DTOs.
- * Extends DataHelper_I with fromJson() and toJson() methods.
+ * Write side of the JSON trait: deserialization ({@code fromJson}).
+ *
+ * <p>Extends {@link Json_IR} (which carries {@code toJson}) and {@link DataHelper_I} (the
+ * write contract). A DTO implementing {@code Json_I} therefore has both {@code toJson} and
+ * {@code fromJson} — existing DTOs are unaffected by the split. The read-only {@code toJson}
+ * half ({@link Json_IR}) can be mixed into readable {@code _IR} interfaces so immutable
+ * {@code _R} record projections can also serialize.</p>
+ *
+ * <p>Records are not deserialized into directly: parse into the mutable form with
+ * {@code fromJson}, then call {@code toRecord()}.</p>
  *
  * <p><strong>Usage:</strong></p>
  * <pre>{@code
@@ -17,9 +25,6 @@ import java.util.Map;
  *     String name;
  *     Integer age;
  * }
- *
- * // Generated interface extends Json_I instead of DataHelper_I
- * public interface PersonDTO_I extends Json_I<PersonDTO_I> { ... }
  *
  * // Use JSON methods directly
  * PersonDTO person = new PersonDTO();
@@ -33,16 +38,9 @@ import java.util.Map;
  *   <li>TeaVM: Performance penalty - avoid using JSON on TeaVM, use JSObject directly</li>
  * </ul>
  *
- * <p><strong>Architecture:</strong></p>
- * <ul>
- *   <li>fromJson: JSON string → Map → property accessors</li>
- *   <li>toJson: property accessors → JSON string</li>
- *   <li>No intermediate MapLike - direct conversion</li>
- * </ul>
- *
  * @param <E> the implementing type (self-reference for fluent API)
  */
-public interface Json_I<E extends DataHelper_I<E>> extends DataHelper_I<E> {
+public interface Json_I<E extends DataHelper_I<E>> extends Json_IR<E>, DataHelper_I<E> {
 
     /**
      * Populate this DTO from a JSON string.
@@ -130,26 +128,5 @@ public interface Json_I<E extends DataHelper_I<E>> extends DataHelper_I<E> {
         }
 
         return (E) this;
-    }
-
-    /**
-     * Convert this DTO to a JSON string.
-     *
-     * @param deep if true, recursively serialize nested objects, lists, and maps;
-     *             if false, nested objects are included as shallow references
-     * @return JSON string representation
-     */
-    default String toJson(boolean deep) {
-        return MinimalJsonWriter.write(this, deep);
-    }
-
-    /**
-     * Convert this DTO to a JSON string (deep serialization).
-     * Convenience method that calls toJson(true).
-     *
-     * @return JSON string representation (deep serialization)
-     */
-    default String toJson() {
-        return toJson(true);
     }
 }

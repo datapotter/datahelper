@@ -1,6 +1,6 @@
 package xyz.jphil.datahelper.json;
 
-import xyz.jphil.datahelper.DataHelper_I;
+import xyz.jphil.datahelper.DataHelper_IR;
 
 import java.util.List;
 import java.util.Map;
@@ -43,13 +43,16 @@ public class MinimalJsonWriter {
     }
 
     /**
-     * Write a DataHelper_I object to JSON string.
+     * Write a DataHelper object to JSON string.
+     *
+     * <p>Accepts the readable contract ({@link DataHelper_IR}) so both mutable DTOs and
+     * immutable {@code _R} record projections serialize through the same path.</p>
      *
      * @param dataHelper the DataHelper object
      * @param deep if true, recursively serialize nested objects
      * @return JSON string representation
      */
-    public static String write(DataHelper_I<?> dataHelper, boolean deep) {
+    public static String write(DataHelper_IR<?> dataHelper, boolean deep) {
         StringBuilder sb = new StringBuilder();
         writeDataHelper(sb, dataHelper, deep);
         return sb.toString();
@@ -66,8 +69,8 @@ public class MinimalJsonWriter {
             writeNumber(sb, (Number) value);
         } else if (value instanceof Boolean) {
             sb.append(value);
-        } else if (value instanceof DataHelper_I) {
-            writeDataHelper(sb, (DataHelper_I<?>) value, true);
+        } else if (value instanceof DataHelper_IR) {
+            writeDataHelper(sb, (DataHelper_IR<?>) value, true);
         } else if (value instanceof List) {
             writeList(sb, (List<?>) value);
         } else if (value instanceof Map) {
@@ -78,7 +81,7 @@ public class MinimalJsonWriter {
         }
     }
 
-    private static void writeDataHelper(StringBuilder sb, DataHelper_I<?> dataHelper, boolean deep) {
+    private static void writeDataHelper(StringBuilder sb, DataHelper_IR<?> dataHelper, boolean deep) {
         sb.append('{');
         boolean first = true;
 
@@ -98,8 +101,8 @@ public class MinimalJsonWriter {
             sb.append(':');
 
             // Write field value
-            if (deep && value instanceof DataHelper_I) {
-                writeDataHelper(sb, (DataHelper_I<?>) value, true);
+            if (deep && value instanceof DataHelper_IR) {
+                writeDataHelper(sb, (DataHelper_IR<?>) value, true);
             } else if (deep && value instanceof List && dataHelper.isListField(fieldName)) {
                 writeList(sb, (List<?>) value);
             } else if (deep && value instanceof Map && dataHelper.isMapField(fieldName)) {

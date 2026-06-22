@@ -6,6 +6,7 @@ import xyz.jphil.datahelper.processor.util.CodeGeneratorUtils;
 import xyz.jphil.datahelper.processor.util.FieldAnalyzer;
 import xyz.jphil.datahelper.processor.util.FieldInfo;
 import xyz.jphil.datahelper.processor.util.ProcessorUtils;
+import xyz.jphil.datahelper.processor.util.ProjectionGenerator;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Processor;
@@ -24,37 +25,28 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Annotation processor that generates {ClassName}_A sealed abstract parent class.
+ * Annotation processor for {@code @Data} (no-Lombok path).
  *
- * <p>Generated code includes:
- * <ul>
- *   <li>Sealed abstract class that permits only the annotated class</li>
- *   <li>Field symbols ($fieldName constants)</li>
- *   <li>FIELDS list (immutable)</li>
- *   <li>Delegating getters/setters (access child's package-private fields)</li>
- *   <li>Fluent accessors</li>
- *   <li>DataHelper_I implementation (15 property accessor methods)</li>
- * </ul>
+ * <p>Generates the same {@code Foo_IR}/{@code Foo_I}/{@code Foo_R} projection as the
+ * {@code @DataHelper} path (so both paths share one mental model), plus the sealed abstract
+ * {@code Foo_A} base that the user class extends.</p>
  *
- * <p>The child class extends the generated sealed abstract class and declares
- * package-private fields that the parent accesses via the {@code sub} reference.</p>
+ * <p>{@code Foo_A implements Foo_I<Foo>} and only contributes the field-backed delegating
+ * getters/setters and the {@code Object} methods ({@code equals}/{@code hashCode}/{@code toString});
+ * the 15 property accessors, the fluent methods, and {@code toRecord()} are inherited as interface
+ * defaults from {@code Foo_IR}/{@code Foo_I}. A static {@code Foo.from(Foo_R)} (inherited from
+ * {@code Foo_A}) mirrors {@code record.toMutable()}.</p>
  *
  * <h3>Example Usage:</h3>
  * <pre>
  * {@code @Data}
  * public final class Person extends Person_A {
  *     String name;
- *     String email;
  *     Integer age;
  * }
  * </pre>
  *
- * <p>This eliminates Lombok dependency and reduces boilerplate compared to
- * the {@code @DataHelper} + {@code @Data} pattern. Design inspired by @ArcadeData
- * but at the base DataHelper level without ArcadeDB-specific dependencies.</p>
- *
  * @see Data
- * @see DataHelper_I
  */
 @AutoService(Processor.class)
 @SupportedAnnotationTypes("xyz.jphil.datahelper.Data")
@@ -68,174 +60,79 @@ public class DataProcessor extends AbstractProcessor {
                 if (element.getKind() == ElementKind.CLASS) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
                             "Processing @Data on " + element);
-                    generateAbstractClass((TypeElement) element);
+                    generate((TypeElement) element);
                 }
             }
         }
         return true;
     }
 
-    private void generateAbstractClass(TypeElement element) {
+    private void generate(TypeElement element) {
         String packageName = processingEnv.getElementUtils().getPackageOf(element).toString();
         String className = element.getSimpleName().toString();
-        String abstractClassName = className + "_A";
 
-        // Initialize utilities
         ProcessorUtils utils = new ProcessorUtils(processingEnv);
         FieldAnalyzer analyzer = new FieldAnalyzer(processingEnv, utils);
 
-        // Analyze fields (includes validation)
         List<FieldInfo> fields = analyzer.analyzeFields(element);
         if (fields == null) {
             return; // Validation errors found
         }
 
-        // Build sealed abstract class
-        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(abstractClassName)
+        // Shared projection (no traits on the @Data path).
+        TypeSpec ir = ProjectionGenerator.buildReadableInterface(packageName, className, fields, utils, List.of());
+        TypeSpec i  = ProjectionGenerator.buildWritableInterface(packageName, className, fields, utils, List.of());
+        TypeSpec r  = ProjectionGenerator.buildRecord(packageName, className, fields);
+        TypeSpec a  = buildAbstractBase(packageName, className, fields);
+
+        writeType(packageName, ir, className + "_IR");
+        writeType(packageName, i,  className + "_I");
+        writeType(packageName, r,  className + "_R");
+        writeType(packageName, a,  className + "_A");
+    }
+
+    private TypeSpec buildAbstractBase(String packageName, String className, List<FieldInfo> fields) {
+        ClassName concrete = ClassName.get(packageName, className);
+
+        TypeSpec.Builder a = TypeSpec.classBuilder(className + "_A")
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT, Modifier.SEALED)
-                .addPermittedSubclass(ClassName.get(packageName, className))
-                .addJavadoc("Sealed abstract base class for {@link $L}.\n", className)
-                .addJavadoc("Generated by @Data annotation processor.\n")
-                .addJavadoc("\n<p>This class implements DataHelper_I,\n")
-                .addJavadoc("providing all accessor methods via delegation to the child class.</p>\n");
+                .addPermittedSubclass(concrete)
+                .addJavadoc("Sealed abstract base class for {@link $L} (generated by @Data).\n", className)
+                .addJavadoc("\n<p>Implements the writable interface and delegates field access to the child;\n")
+                .addJavadoc("property accessors, fluent methods and {@code toRecord()} are inherited as defaults.</p>\n")
+                .addSuperinterface(ParameterizedTypeName.get(ClassName.get(packageName, className + "_I"), concrete));
 
-        // Implement DataHelper_I
-        classBuilder.addSuperinterface(ParameterizedTypeName.get(
-                ClassName.get("xyz.jphil.datahelper", "DataHelper_I"),
-                ClassName.get(packageName, className)
-        ));
+        // 'sub' field for delegation (opposite of 'super')
+        a.addField(FieldSpec.builder(concrete, "sub", Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("($T) this", concrete)
+                .build());
 
-        // Add 'sub' field for delegation (opposite of 'super')
-        FieldSpec subField = FieldSpec.builder(
-                        ClassName.get(packageName, className),
-                        "sub",
-                        Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("($T) this", ClassName.get(packageName, className))
-                .build();
-        classBuilder.addField(subField);
+        // Field-backed getters/setters; everything else is inherited from _IR/_I defaults.
+        ProjectionGenerator.addDelegatingAccessors(a, fields);
 
-        // Add field symbols ($fieldName constants)
-        CodeGeneratorUtils.addFieldSymbols(classBuilder, fields, packageName, className);
+        // Object methods (value-based) delegating to the DataHelper_I statics.
+        a.addMethod(CodeGeneratorUtils.createEqualsMethod());
+        a.addMethod(CodeGeneratorUtils.createHashCodeMethod());
+        a.addMethod(CodeGeneratorUtils.createToStringMethod());
 
-        // Add FIELDS list
-        CodeGeneratorUtils.addFieldsList(classBuilder, fields, packageName, className);
+        // Static factory: Foo.from(Foo_R) -> Foo (inheritable through the subclass).
+        a.addMethod(ProjectionGenerator.buildFromStatic(packageName, className));
 
-        // Add delegating getters
-        for (FieldInfo field : fields) {
-            // For boolean types, generate BOTH "is" and "get" getters for maximum compatibility
-            if (ProcessorUtils.isBooleanType(field.type)) {
-                // Generate isXxx() method
-                String isGetterName = "is" + ProcessorUtils.capitalize(field.name);
-                MethodSpec isGetter = MethodSpec.methodBuilder(isGetterName)
-                        .addModifiers(Modifier.PUBLIC)
-                        .returns(field.type)
-                        .addStatement("return sub.$N", field.name)
-                        .build();
-                classBuilder.addMethod(isGetter);
+        return a.build();
+    }
 
-                // Generate getXxx() method (delegates to isXxx for consistency)
-                String getGetterName = "get" + ProcessorUtils.capitalize(field.name);
-                MethodSpec getGetter = MethodSpec.methodBuilder(getGetterName)
-                        .addModifiers(Modifier.PUBLIC)
-                        .returns(field.type)
-                        .addStatement("return $N()", isGetterName)
-                        .build();
-                classBuilder.addMethod(getGetter);
-            } else {
-                // For non-boolean types, use standard "get" prefix
-                String getterName = "get" + ProcessorUtils.capitalize(field.name);
-                MethodSpec getter = MethodSpec.methodBuilder(getterName)
-                        .addModifiers(Modifier.PUBLIC)
-                        .returns(field.type)
-                        .addStatement("return sub.$N", field.name)
-                        .build();
-                classBuilder.addMethod(getter);
-            }
-        }
-
-        // Add delegating setters
-        for (FieldInfo field : fields) {
-            String setterName = "set" + ProcessorUtils.capitalize(field.name);
-            MethodSpec setter = MethodSpec.methodBuilder(setterName)
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(field.type, field.name)
-                    .addStatement("sub.$N = $N", field.name, field.name)
-                    .build();
-            classBuilder.addMethod(setter);
-        }
-
-        // Add fluent getters
-        for (FieldInfo field : fields) {
-            // Use "is" prefix for boolean types (primitive boolean and Boolean wrapper)
-            String prefix = ProcessorUtils.isBooleanType(field.type) ? "is" : "get";
-            String getterName = prefix + ProcessorUtils.capitalize(field.name);
-            MethodSpec fluentGetter = MethodSpec.methodBuilder(field.name)
-                    .addModifiers(Modifier.PUBLIC)
-                    .returns(field.type)
-                    .addStatement("return $N()", getterName)
-                    .build();
-            classBuilder.addMethod(fluentGetter);
-        }
-
-        // Add fluent setters (return 'sub' for chaining)
-        for (FieldInfo field : fields) {
-            String setterName = "set" + ProcessorUtils.capitalize(field.name);
-            MethodSpec fluentSetter = MethodSpec.methodBuilder(field.name)
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(field.type, field.name)
-                    .returns(ClassName.get(packageName, className))
-                    .addStatement("$N($N)", setterName, field.name)
-                    .addStatement("return sub")
-                    .build();
-            classBuilder.addMethod(fluentSetter);
-        }
-
-        // ========== DataHelper_I Methods (15 property accessor methods) ==========
-        // 0. dataClass()
-        classBuilder.addMethod(CodeGeneratorUtils.createDataClassMethod(packageName, className, false));
-
-        // 1. fieldNames()
-        classBuilder.addMethod(CodeGeneratorUtils.createFieldNamesMethod(false));
-
-        // 2. getPropertyByName(String)
-        classBuilder.addMethod(CodeGeneratorUtils.createGetPropertyByNameMethod(fields, utils, false));
-
-        // 3. setPropertyByName(String, Object)
-        classBuilder.addMethod(CodeGeneratorUtils.createSetPropertyByNameMethod(fields, utils, false));
-
-        // 4. getPropertyType(String)
-        classBuilder.addMethod(CodeGeneratorUtils.createGetPropertyTypeMethod(fields, false));
-
-        // 5. createNestedObject(String)
-        classBuilder.addMethod(CodeGeneratorUtils.createNestedObjectMethod(fields, false));
-
-        // 6. createListElement(String)
-        classBuilder.addMethod(CodeGeneratorUtils.createListElementMethod(fields, false));
-
-        // 7. isListField(String)
-        classBuilder.addMethod(CodeGeneratorUtils.createIsListFieldMethod(fields, false));
-
-        // 8. isNestedObjectField(String)
-        classBuilder.addMethod(CodeGeneratorUtils.createIsNestedObjectFieldMethod(fields, false));
-
-        // 9-14. Map support methods
-        CodeGeneratorUtils.addMapMethods(classBuilder, fields, false);
-
-        // Build and write the file
-        TypeSpec classSpec = classBuilder.build();
-        JavaFile javaFile = JavaFile.builder(packageName, classSpec)
+    private void writeType(String packageName, TypeSpec type, String displayName) {
+        JavaFile javaFile = JavaFile.builder(packageName, type)
                 .indent("    ")
                 .skipJavaLangImports(true)
                 .addFileComment("Generated by DataProcessor on " + LocalDateTime.now())
                 .build();
-
         try {
             javaFile.writeTo(processingEnv.getFiler());
-            processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
-                    "Generated sealed abstract class: " + abstractClassName + " for class: " + className);
+            processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "Generated: " + displayName);
         } catch (IOException e) {
             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                    "Failed to generate sealed abstract class: " + e.getMessage());
+                    "Failed to generate " + displayName + ": " + e.getMessage());
         }
     }
 }

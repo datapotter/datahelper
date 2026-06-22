@@ -41,23 +41,28 @@ public class CodeGeneratorUtils {
 
     /**
      * Generate Field symbol constants ($fieldName) for all fields.
-     * Uses Field for simple types, DataField for nested DataHelper types.
+     * Uses Field for simple types, DataField/ListDataField/MapDataField for nested DataHelper types.
+     *
+     * @param fieldsHostSuffix the suffix of the sibling type that hosts a nested type's {@code FIELDS}
+     *                         list (e.g. {@code "_IR"} for the @DataHelper/@Data projection, {@code "_A"}
+     *                         for the @ArcadeData sealed-base path).
      */
     public static void addFieldSymbols(TypeSpec.Builder builder, List<FieldInfo> fields,
-                                       String packageName, String className) {
+                                       String packageName, String className, String fieldsHostSuffix) {
         for (FieldInfo field : fields) {
             String symbolName = "$" + field.name;
 
             // Box primitive types (int -> Integer, double -> Double, etc.)
             TypeName boxedFieldType = field.type.isPrimitive() ? field.type.box() : field.type;
 
-            // Check if this field is a nested DataHelper type
-            boolean isNestedDataHelper = field.isNestedDataHelper;
-
             // Get raw type for .class literal (List.class instead of List<String>.class)
             TypeName rawFieldType = getRawType(boxedFieldType);
 
-            if (isNestedDataHelper) {
+            // Type-safe chaining symbols (DataField/ListDataField/MapDataField) reference the
+            // nested type's generated FIELDS list, which lives on its _IR interface. This is only
+            // available for annotation-generated nested types; hand-written DataHelpers degrade to
+            // a plain Field (no chaining) since they have no generated _IR.
+            if (field.isNestedDataHelper && field.isNestedGenerated) {
                 // Use DataField for nested DataHelper types (supports __() chaining)
                 // Pass the nested type's FIELDS list
                 TypeName fieldGenericType = ParameterizedTypeName.get(
@@ -74,14 +79,15 @@ public class CodeGeneratorUtils {
 
                 FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class, $L_A.FIELDS)",
+                        .initializer("new $T($S, $T.class, $L$L.FIELDS)",
                             ClassName.get(DataField.class),
                             field.name,
                             rawFieldType,
-                            nestedClassName)
+                            nestedClassName,
+                            fieldsHostSuffix)
                         .build();
                 builder.addField(symbol);
-            } else if (field.isListOfDataHelper) {
+            } else if (field.isListOfDataHelper && field.isListElementGenerated) {
                 // Use ListDataField for List<DataHelper> types
                 TypeName elementType = field.listElementType;
                 TypeName fieldGenericType = ParameterizedTypeName.get(
@@ -98,14 +104,15 @@ public class CodeGeneratorUtils {
 
                 FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class, $L_A.FIELDS)",
+                        .initializer("new $T($S, $T.class, $L$L.FIELDS)",
                             ClassName.get(ListDataField.class),
                             field.name,
                             elementType,
-                            elementClassName)
+                            elementClassName,
+                            fieldsHostSuffix)
                         .build();
                 builder.addField(symbol);
-            } else if (field.isMapOfDataHelper) {
+            } else if (field.isMapOfDataHelper && field.isMapValueGenerated) {
                 // Use MapDataField for Map<K, DataHelper> types
                 TypeName keyType = field.mapKeyType;
                 TypeName valueType = field.mapValueType;
@@ -124,12 +131,13 @@ public class CodeGeneratorUtils {
 
                 FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class, $T.class, $L_A.FIELDS)",
+                        .initializer("new $T($S, $T.class, $T.class, $L$L.FIELDS)",
                             ClassName.get(MapDataField.class),
                             field.name,
                             keyType,
                             valueType,
-                            valueClassName)
+                            valueClassName,
+                            fieldsHostSuffix)
                         .build();
                 builder.addField(symbol);
             } else {
@@ -429,14 +437,66 @@ public class CodeGeneratorUtils {
     }
 
     /**
-     * Generate Map-related methods (6 methods for Map support).
+     * Generate {@code Object.equals(Object)} delegating to {@code DataHelper_I.equals(this, o)}.
+     *
+     * <p>Class-only: interfaces cannot override Object methods, so this is used by the
+     * {@code @Data} ({@code _A}) generator. The {@code @DataHelper} ({@code _I}) path relies
+     * on Lombok for equals/hashCode/toString.</p>
      */
-    public static void addMapMethods(TypeSpec.Builder builder, List<FieldInfo> fields, boolean isInterface) {
+    public static MethodSpec createEqualsMethod() {
+        return MethodSpec.methodBuilder("equals")
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Override.class)
+                .addParameter(Object.class, "o")
+                .returns(boolean.class)
+                .addStatement("return $T.equals(this, o)",
+                        ClassName.get("xyz.jphil.datahelper", "DataHelper_I"))
+                .build();
+    }
+
+    /**
+     * Generate {@code Object.hashCode()} delegating to {@code DataHelper_I.hashCode(this)}.
+     */
+    public static MethodSpec createHashCodeMethod() {
+        return MethodSpec.methodBuilder("hashCode")
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Override.class)
+                .returns(int.class)
+                .addStatement("return $T.hashCode(this)",
+                        ClassName.get("xyz.jphil.datahelper", "DataHelper_I"))
+                .build();
+    }
+
+    /**
+     * Generate {@code Object.toString()} delegating to {@code DataHelper_I.toString(this)}.
+     */
+    public static MethodSpec createToStringMethod() {
+        return MethodSpec.methodBuilder("toString")
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Override.class)
+                .returns(String.class)
+                .addStatement("return $T.toString(this)",
+                        ClassName.get("xyz.jphil.datahelper", "DataHelper_I"))
+                .build();
+    }
+
+    /**
+     * Generate the <em>read-side</em> Map metadata methods (belong on the readable {@code _IR}):
+     * {@code isMapField}, {@code getMapKeyType}, {@code getMapValueType}, {@code isMapValueDataHelper}.
+     */
+    public static void addMapReadMethods(TypeSpec.Builder builder, List<FieldInfo> fields, boolean isInterface) {
         builder.addMethod(createIsMapFieldMethod(fields, isInterface));
         builder.addMethod(createGetMapKeyTypeMethod(fields, isInterface));
         builder.addMethod(createGetMapValueTypeMethod(fields, isInterface));
-        builder.addMethod(createCreateMapInstanceMethod(fields, isInterface));
         builder.addMethod(createIsMapValueDataHelperMethod(fields, isInterface));
+    }
+
+    /**
+     * Generate the <em>write-side</em> Map factory methods (belong on the writable {@code _I}):
+     * {@code createMapInstance}, {@code createMapValueElement}.
+     */
+    public static void addMapWriteMethods(TypeSpec.Builder builder, List<FieldInfo> fields, boolean isInterface) {
+        builder.addMethod(createCreateMapInstanceMethod(fields, isInterface));
         builder.addMethod(createCreateMapValueElementMethod(fields, isInterface));
     }
 

@@ -201,6 +201,30 @@ public class ProcessorUtils {
     }
 
     /**
+     * Check if a type is an <em>annotation-generated</em> DataHelper, i.e. it carries one of the
+     * configured DataHelper annotations ({@code @DataHelper}/{@code @Data}/{@code @ArcadeData}/&hellip;).
+     *
+     * <p>Only such types get generated {@code _IR}/{@code _I}/{@code _R} siblings, so this is the
+     * predicate that decides whether a nested component can participate in getter widening and
+     * record projection. A hand-written DataHelper (case 2 of {@link #isDataHelperType}) returns
+     * {@code false} here and is treated as an opaque concrete type with identity conversion.</p>
+     */
+    public boolean isGeneratedDataHelperType(TypeMirror type) {
+        if (type == null || type.getKind() != TypeKind.DECLARED) return false;
+
+        TypeElement typeElement = (TypeElement) processingEnv.getTypeUtils().asElement(type);
+        if (typeElement == null) return false;
+
+        for (String annotationName : dataHelperAnnotations) {
+            if (typeElement.getAnnotationMirrors().stream()
+                    .anyMatch(mirror -> mirror.getAnnotationType().toString().equals(annotationName))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Get element type from List<T>
      */
     public TypeName getListElementType(TypeMirror type) {

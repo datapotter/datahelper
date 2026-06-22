@@ -2,10 +2,10 @@ package xyz.jphil.datahelper;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.*;
-import xyz.jphil.datahelper.processor.util.CodeGeneratorUtils;
 import xyz.jphil.datahelper.processor.util.FieldAnalyzer;
 import xyz.jphil.datahelper.processor.util.FieldInfo;
 import xyz.jphil.datahelper.processor.util.ProcessorUtils;
+import xyz.jphil.datahelper.processor.util.ProjectionGenerator;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Processor;
@@ -15,25 +15,31 @@ import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.MirroredTypesException;
+import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 /**
- * Annotation processor that generates {ClassName}_I interface with property accessors.
+ * Annotation processor for {@code @DataHelper} (Lombok-companion path).
  *
- * Generated code includes:
- * - Field symbols ($fieldName constants)
- * - Fluent getters and setters
- * - 14 property accessor methods for DataHelper_I (8 for List/Object, 6 for Map)
- * - FIELDS list (immutable)
+ * <p>Generates, per annotated class {@code Foo}:
+ * <ul>
+ *   <li>{@code Foo_IR} — readable interface ($symbols, FIELDS, typed getters, read accessors, {@code toRecord()})</li>
+ *   <li>{@code Foo_I extends Foo_IR, DataHelper_I} — adds setters + write accessors</li>
+ *   <li>{@code Foo_R implements Foo_IR<Foo_R>} — immutable record projection</li>
+ * </ul>
  *
- * <p>The generated interface extends DataHelper_I and implements all property accessor methods.
- * Serialization traits (JSON, ArcadeDB, etc.) use these property accessors to convert data.</p>
+ * <p>The user class implements {@code Foo_I<Foo>} and provides field getters/setters (Lombok).
+ * Optional {@code superInterfaces} are split across {@code _IR}/{@code _I} by naming convention,
+ * so a trait's read half (e.g. {@code Json_IR}, giving {@code toJson}) lands on {@code _IR} and is
+ * inherited by the record, while its write half ({@code Json_I}, giving {@code fromJson}) lands on
+ * {@code _I} (mutable only).</p>
  */
 @AutoService(Processor.class)
 @SupportedAnnotationTypes("xyz.jphil.datahelper.DataHelper")
@@ -47,167 +53,106 @@ public class DataHelperProcessor extends AbstractProcessor {
                 if (element.getKind() == ElementKind.CLASS) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
                             "Processing @DataHelper on " + element);
-                    generateInterface((TypeElement) element);
+                    generateProjection((TypeElement) element);
                 }
             }
         }
         return true;
     }
 
-    private void generateInterface(TypeElement element) {
+    private void generateProjection(TypeElement element) {
         String packageName = processingEnv.getElementUtils().getPackageOf(element).toString();
         String className = element.getSimpleName().toString();
-        String interfaceName = className + "_I";
 
-        // Initialize utilities
         ProcessorUtils utils = new ProcessorUtils(processingEnv);
         FieldAnalyzer analyzer = new FieldAnalyzer(processingEnv, utils);
 
-        // Analyze fields (includes validation)
         List<FieldInfo> fields = analyzer.analyzeFields(element);
         if (fields == null) {
             return; // Validation errors found
         }
 
-        // Build the interface
-        TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(interfaceName)
-                .addModifiers(Modifier.PUBLIC)
-                .addTypeVariable(TypeVariableName.get("E",
-                        ParameterizedTypeName.get(
-                                ClassName.get(packageName, interfaceName),
-                                TypeVariableName.get("E")
-                        )));
+        // Split declared superInterfaces (traits) across the read/write interfaces by convention.
+        List<TypeName> irSupers = new ArrayList<>();
+        List<TypeName> iSupers = new ArrayList<>();
+        wireSuperInterfaces(element, irSupers, iSupers);
 
-        // Always extend DataHelper_I<E> as the base contract
-        interfaceBuilder.addSuperinterface(ParameterizedTypeName.get(
-                ClassName.get("xyz.jphil.datahelper", "DataHelper_I"),
-                TypeVariableName.get("E")
-        ));
+        TypeSpec ir = ProjectionGenerator.buildReadableInterface(packageName, className, fields, utils, irSupers);
+        TypeSpec i  = ProjectionGenerator.buildWritableInterface(packageName, className, fields, utils, iSupers);
+        TypeSpec r  = ProjectionGenerator.buildRecord(packageName, className, fields);
 
-        // Add field symbols ($fieldName constants)
-        CodeGeneratorUtils.addFieldSymbols(interfaceBuilder, fields, packageName, className);
+        writeType(packageName, ir, className + "_IR");
+        writeType(packageName, i,  className + "_I");
+        writeType(packageName, r,  className + "_R");
+    }
 
-        // Add FIELDS list
-        CodeGeneratorUtils.addFieldsList(interfaceBuilder, fields, packageName, className);
+    /**
+     * Resolve {@code @DataHelper(superInterfaces = {...})} and route each declared trait to the
+     * readable and/or writable interface. A trait declared as its {@code _IR}/{@code _I} half also
+     * pulls in its sibling half (resolved by naming convention) when present on the classpath; a
+     * plain marker interface is attached to the writable (mutable) interface only.
+     */
+    private void wireSuperInterfaces(TypeElement element, List<TypeName> irSupers, List<TypeName> iSupers) {
+        DataHelper ann = element.getAnnotation(DataHelper.class);
+        if (ann == null) return;
 
-        // Add verbose getter declarations
-        for (FieldInfo field : fields) {
-            // For boolean types, generate BOTH "is" and "get" getters for maximum compatibility
-            if (ProcessorUtils.isBooleanType(field.type)) {
-                // Generate abstract isXxx() method
-                String isGetterName = "is" + ProcessorUtils.capitalize(field.name);
-                MethodSpec isGetter = MethodSpec.methodBuilder(isGetterName)
-                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                        .returns(field.type)
-                        .build();
-                interfaceBuilder.addMethod(isGetter);
+        List<? extends TypeMirror> declared;
+        try {
+            ann.superInterfaces();
+            return; // no MirroredTypesException -> empty
+        } catch (MirroredTypesException mte) {
+            declared = mte.getTypeMirrors();
+        }
 
-                // Generate default getXxx() method (delegates to isXxx)
-                String getGetterName = "get" + ProcessorUtils.capitalize(field.name);
-                MethodSpec getGetter = MethodSpec.methodBuilder(getGetterName)
-                        .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
-                        .returns(field.type)
-                        .addStatement("return $N()", isGetterName)
-                        .build();
-                interfaceBuilder.addMethod(getGetter);
+        for (TypeMirror t : declared) {
+            TypeElement te = (TypeElement) processingEnv.getTypeUtils().asElement(t);
+            if (te == null) continue;
+
+            String simpleName = te.getSimpleName().toString();
+            String pkg = processingEnv.getElementUtils().getPackageOf(te).getQualifiedName().toString();
+
+            if (simpleName.endsWith("_IR")) {
+                irSupers.add(asSuper(pkg, simpleName, te));
+                String writeName = simpleName.substring(0, simpleName.length() - 3) + "_I"; // _IR -> _I
+                addIfPresent(pkg, writeName, iSupers);
+            } else if (simpleName.endsWith("_I")) {
+                iSupers.add(asSuper(pkg, simpleName, te));
+                String readName = simpleName.substring(0, simpleName.length() - 2) + "_IR"; // _I -> _IR
+                addIfPresent(pkg, readName, irSupers);
             } else {
-                // For non-boolean types, use standard "get" prefix
-                String getterName = "get" + ProcessorUtils.capitalize(field.name);
-                MethodSpec getter = MethodSpec.methodBuilder(getterName)
-                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                        .returns(field.type)
-                        .build();
-                interfaceBuilder.addMethod(getter);
+                // Plain marker (e.g. a JS interop marker): mutable side only, keep records clean.
+                iSupers.add(asSuper(pkg, simpleName, te));
             }
         }
+    }
 
-        // Add verbose setter declarations
-        for (FieldInfo field : fields) {
-            String setterName = "set" + ProcessorUtils.capitalize(field.name);
-            MethodSpec setter = MethodSpec.methodBuilder(setterName)
-                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                    .addParameter(field.type, field.name)
-                    .build();
-            interfaceBuilder.addMethod(setter);
+    /** A trait super-interface, parameterized with {@code E} when it declares a type variable. */
+    private TypeName asSuper(String pkg, String simpleName, TypeElement te) {
+        ClassName cn = ClassName.get(pkg, simpleName);
+        return te.getTypeParameters().isEmpty()
+                ? cn
+                : ParameterizedTypeName.get(cn, TypeVariableName.get("E"));
+    }
+
+    private void addIfPresent(String pkg, String simpleName, List<TypeName> target) {
+        TypeElement sibling = processingEnv.getElementUtils().getTypeElement(pkg + "." + simpleName);
+        if (sibling != null) {
+            target.add(asSuper(pkg, simpleName, sibling));
         }
+    }
 
-        // Add fluent getter defaults
-        for (FieldInfo field : fields) {
-            // Use "is" prefix for boolean types (primitive boolean and Boolean wrapper)
-            String prefix = ProcessorUtils.isBooleanType(field.type) ? "is" : "get";
-            String getterName = prefix + ProcessorUtils.capitalize(field.name);
-            MethodSpec fluentGetter = MethodSpec.methodBuilder(field.name)
-                    .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
-                    .returns(field.type)
-                    .addStatement("return $N()", getterName)
-                    .build();
-            interfaceBuilder.addMethod(fluentGetter);
-        }
-
-        // Add fluent setter defaults
-        for (FieldInfo field : fields) {
-            String setterName = "set" + ProcessorUtils.capitalize(field.name);
-            MethodSpec fluentSetter = MethodSpec.methodBuilder(field.name)
-                    .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
-                    .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class)
-                            .addMember("value", "$S", "unchecked")
-                            .build())
-                    .addParameter(field.type, field.name)
-                    .returns(TypeVariableName.get("E"))
-                    .addStatement("$N($N)", setterName, field.name)
-                    .addStatement("return (E) this")
-                    .build();
-            interfaceBuilder.addMethod(fluentSetter);
-        }
-
-        // ========== Property Accessor Methods (15 methods for delegation) ==========
-        // Using shared CodeGeneratorUtils
-
-        // 0. dataClass()
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createDataClassMethod(packageName, className, true));
-
-        // 1. fieldNames()
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createFieldNamesMethod(true));
-
-        // 2. getPropertyByName(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createGetPropertyByNameMethod(fields, utils, true));
-
-        // 3. setPropertyByName(String, Object)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createSetPropertyByNameMethod(fields, utils, true));
-
-        // 4. getPropertyType(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createGetPropertyTypeMethod(fields, true));
-
-        // 5. createNestedObject(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createNestedObjectMethod(fields, true));
-
-        // 6. createListElement(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createListElementMethod(fields, true));
-
-        // 7. isListField(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createIsListFieldMethod(fields, true));
-
-        // 8. isNestedObjectField(String)
-        interfaceBuilder.addMethod(CodeGeneratorUtils.createIsNestedObjectFieldMethod(fields, true));
-
-        // 9-14. Map support methods
-        CodeGeneratorUtils.addMapMethods(interfaceBuilder, fields, true);
-
-        // Build and write the file
-        TypeSpec interfaceSpec = interfaceBuilder.build();
-        JavaFile javaFile = JavaFile.builder(packageName, interfaceSpec)
+    private void writeType(String packageName, TypeSpec type, String displayName) {
+        JavaFile javaFile = JavaFile.builder(packageName, type)
                 .indent("    ")
                 .skipJavaLangImports(true)
                 .addFileComment("Generated by DataHelperProcessor on " + LocalDateTime.now())
                 .build();
-
         try {
             javaFile.writeTo(processingEnv.getFiler());
-            processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
-                    "Generated interface: " + interfaceName + " for class: " + className);
+            processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "Generated: " + displayName);
         } catch (IOException e) {
             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                    "Failed to generate interface: " + e.getMessage());
+                    "Failed to generate " + displayName + ": " + e.getMessage());
         }
     }
 }
