@@ -3,7 +3,12 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.github.xyz-jphil</groupId>
     <artifactId>xyz-jphil-datahelper-base</artifactId>
-    <version>1.0</version>
+    <!--
+      1.1 — adds HasUuid (PRP-28 phase 1): implemented by an @AsUuid enum, plus the reflection-free
+        HasUuid.storageValue(Object) write-side conversion used by any backend's serialization trait.
+        Additive; no change to existing types.
+    -->
+    <version>1.1</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

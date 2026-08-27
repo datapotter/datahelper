@@ -4,10 +4,14 @@ import com.palantir.javapoet.*;
 import xyz.jphil.datahelper.DataField;
 import xyz.jphil.datahelper.Field;
 import xyz.jphil.datahelper.Field_I;
+import xyz.jphil.datahelper.LinkField;
+import xyz.jphil.datahelper.LinkListField;
+import xyz.jphil.datahelper.LinkMapField;
 import xyz.jphil.datahelper.ListDataField;
 import xyz.jphil.datahelper.MapDataField;
 
 import javax.lang.model.element.Modifier;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +41,18 @@ public class CodeGeneratorUtils {
             return ((ParameterizedTypeName) typeName).rawType();
         }
         return typeName;
+    }
+
+    /**
+     * Reference to a nested DataHelper type's generated {@code FIELDS} list, e.g. {@code Address_A.FIELDS}.
+     * Emitted as a {@code $T} so JavaPoet imports the companion when it lives in another package;
+     * an unresolvable type degrades to the bare simple name, which is what a same-round sibling needs.
+     */
+    private static CodeBlock fieldsRef(TypeName concrete, String fieldsHostSuffix) {
+        var raw = getRawType(concrete);
+        return raw instanceof ClassName cn
+                ? CodeBlock.of("$T.FIELDS", ClassName.get(cn.packageName(), cn.simpleName() + fieldsHostSuffix))
+                : CodeBlock.of("$L$L.FIELDS", simpleName(raw), fieldsHostSuffix);
     }
 
     /**
@@ -71,20 +87,13 @@ public class CodeGeneratorUtils {
                     boxedFieldType
                 );
 
-                // Get nested type's class name for FIELDS reference
-                String nestedClassName = rawFieldType.toString();
-                if (nestedClassName.contains(".")) {
-                    nestedClassName = nestedClassName.substring(nestedClassName.lastIndexOf('.') + 1);
-                }
-
                 FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class, $L$L.FIELDS)",
+                        .initializer("new $T($S, $T.class, $L)",
                             ClassName.get(DataField.class),
                             field.name,
                             rawFieldType,
-                            nestedClassName,
-                            fieldsHostSuffix)
+                            fieldsRef(rawFieldType, fieldsHostSuffix))
                         .build();
                 builder.addField(symbol);
             } else if (field.isListOfDataHelper && field.isListElementGenerated) {
@@ -96,20 +105,13 @@ public class CodeGeneratorUtils {
                     elementType
                 );
 
-                // Get element type's class name for FIELDS reference
-                String elementClassName = elementType.toString();
-                if (elementClassName.contains(".")) {
-                    elementClassName = elementClassName.substring(elementClassName.lastIndexOf('.') + 1);
-                }
-
                 FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class, $L$L.FIELDS)",
+                        .initializer("new $T($S, $T.class, $L)",
                             ClassName.get(ListDataField.class),
                             field.name,
                             elementType,
-                            elementClassName,
-                            fieldsHostSuffix)
+                            fieldsRef(elementType, fieldsHostSuffix))
                         .build();
                 builder.addField(symbol);
             } else if (field.isMapOfDataHelper && field.isMapValueGenerated) {
@@ -123,23 +125,60 @@ public class CodeGeneratorUtils {
                     valueType
                 );
 
-                // Get value type's class name for FIELDS reference
-                String valueClassName = valueType.toString();
-                if (valueClassName.contains(".")) {
-                    valueClassName = valueClassName.substring(valueClassName.lastIndexOf('.') + 1);
-                }
-
                 FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class, $T.class, $L$L.FIELDS)",
+                        .initializer("new $T($S, $T.class, $T.class, $L)",
                             ClassName.get(MapDataField.class),
                             field.name,
                             keyType,
                             valueType,
-                            valueClassName,
-                            fieldsHostSuffix)
+                            fieldsRef(valueType, fieldsHostSuffix))
                         .build();
                 builder.addField(symbol);
+            } else if (field.isLink) {
+                // Reference (LINK): symbol is LinkField<Owner, Target>; value carrier is Link<Target>.
+                TypeName target = getRawType(field.linkTargetType);
+                TypeName symType = ParameterizedTypeName.get(
+                    ClassName.get(LinkField.class), ClassName.get(packageName, className), field.linkTargetType);
+                FieldSpec.Builder sb = FieldSpec.builder(symType, symbolName,
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
+                if (field.isLinkTargetGenerated) {
+                    sb.initializer("new $T($S, $T.class, $L)",
+                        ClassName.get(LinkField.class), field.name, target, fieldsRef(target, fieldsHostSuffix));
+                } else {
+                    sb.initializer("new $T($S, $T.class)", ClassName.get(LinkField.class), field.name, target);
+                }
+                builder.addField(sb.build());
+            } else if (field.isLinkList) {
+                // List of references (LIST of LINK): LinkListField<Owner, Element>.
+                TypeName element = getRawType(field.linkTargetType);
+                TypeName symType = ParameterizedTypeName.get(
+                    ClassName.get(LinkListField.class), ClassName.get(packageName, className), field.linkTargetType);
+                FieldSpec.Builder sb = FieldSpec.builder(symType, symbolName,
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
+                if (field.isLinkTargetGenerated) {
+                    sb.initializer("new $T($S, $T.class, $L)",
+                        ClassName.get(LinkListField.class), field.name, element, fieldsRef(element, fieldsHostSuffix));
+                } else {
+                    sb.initializer("new $T($S, $T.class)", ClassName.get(LinkListField.class), field.name, element);
+                }
+                builder.addField(sb.build());
+            } else if (field.isLinkMap) {
+                // Keyed map of references (MAP of LINK): LinkMapField<Owner, Key, Value>.
+                TypeName key = field.linkMapKeyType;
+                TypeName value = getRawType(field.linkTargetType);
+                TypeName symType = ParameterizedTypeName.get(
+                    ClassName.get(LinkMapField.class), ClassName.get(packageName, className), key, field.linkTargetType);
+                FieldSpec.Builder sb = FieldSpec.builder(symType, symbolName,
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
+                if (field.isLinkTargetGenerated) {
+                    sb.initializer("new $T($S, $T.class, $T.class, $L)",
+                        ClassName.get(LinkMapField.class), field.name, key, value, fieldsRef(value, fieldsHostSuffix));
+                } else {
+                    sb.initializer("new $T($S, $T.class, $T.class)",
+                        ClassName.get(LinkMapField.class), field.name, key, value);
+                }
+                builder.addField(sb.build());
             } else {
                 // Use regular Field for simple types
                 TypeName fieldGenericType = ParameterizedTypeName.get(
@@ -664,5 +703,179 @@ public class CodeGeneratorUtils {
         }
 
         return builder.build();
+    }
+
+    // ========== Reference (LINK) metadata generation (override ArcadeDoc_I defaults) ==========
+
+    /** Best-effort simple class name from a TypeName (strips package and any type arguments). */
+    private static String simpleName(TypeName t) {
+        String s = t.toString();
+        int lt = s.indexOf('<');
+        if (lt >= 0) s = s.substring(0, lt);
+        int dot = s.lastIndexOf('.');
+        if (dot >= 0) s = s.substring(dot + 1);
+        return s;
+    }
+
+    /** Shared generator for a {@code boolean field-name predicate} method (case name -> true). */
+    private static MethodSpec booleanFieldPredicate(String methodName, List<FieldInfo> fields,
+            java.util.function.Predicate<FieldInfo> predicate, boolean isInterface) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName)
+                .addModifiers(implModifiers(isInterface))
+                .addAnnotation(Override.class)
+                .addParameter(String.class, "propertyName")
+                .returns(boolean.class);
+
+        List<FieldInfo> matched = fields.stream().filter(predicate).toList();
+        if (matched.isEmpty()) {
+            builder.addStatement("return false");
+        } else if (matched.size() == 1) {
+            builder.addStatement("return $S.equals(propertyName)", matched.get(0).name);
+        } else {
+            CodeBlock.Builder sw = CodeBlock.builder();
+            sw.add("return switch (propertyName) {\n").indent();
+            for (FieldInfo f : matched) sw.add("case $S -> true;\n", f.name);
+            sw.add("default -> false;\n").unindent().add("};");
+            builder.addCode(sw.build());
+        }
+        return builder.build();
+    }
+
+    public static MethodSpec createIsLinkFieldMethod(List<FieldInfo> fields, boolean isInterface) {
+        return booleanFieldPredicate("isLinkField", fields, f -> f.isLink, isInterface);
+    }
+
+    public static MethodSpec createIsLinkListFieldMethod(List<FieldInfo> fields, boolean isInterface) {
+        return booleanFieldPredicate("isLinkListField", fields, f -> f.isLinkList, isInterface);
+    }
+
+    public static MethodSpec createIsLinkMapFieldMethod(List<FieldInfo> fields, boolean isInterface) {
+        return booleanFieldPredicate("isLinkMapField", fields, f -> f.isLinkMap, isInterface);
+    }
+
+    /** {@code Class<?> linkTargetType(String)} — the linked target type for any reference field. */
+    public static MethodSpec createLinkTargetTypeMethod(List<FieldInfo> fields, boolean isInterface) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("linkTargetType")
+                .addModifiers(implModifiers(isInterface))
+                .addAnnotation(Override.class)
+                .addParameter(String.class, "propertyName")
+                .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)));
+
+        List<FieldInfo> links = fields.stream().filter(FieldInfo::isAnyLink).toList();
+        if (links.isEmpty()) {
+            builder.addStatement("return null");
+        } else {
+            CodeBlock.Builder sw = CodeBlock.builder();
+            sw.add("return switch (propertyName) {\n").indent();
+            for (FieldInfo f : links) sw.add("case $S -> $T.class;\n", f.name, getRawType(f.linkTargetType));
+            sw.add("default -> null;\n").unindent().add("};");
+            builder.addCode(sw.build());
+        }
+        return builder.build();
+    }
+
+    /** {@code Class<?> linkKeyType(String)} — the key type for LinkMap reference fields. */
+    public static MethodSpec createLinkKeyTypeMethod(List<FieldInfo> fields, boolean isInterface) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("linkKeyType")
+                .addModifiers(implModifiers(isInterface))
+                .addAnnotation(Override.class)
+                .addParameter(String.class, "propertyName")
+                .returns(ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(Object.class)));
+
+        List<FieldInfo> mapLinks = fields.stream().filter(f -> f.isLinkMap).toList();
+        if (mapLinks.isEmpty()) {
+            builder.addStatement("return null");
+        } else {
+            CodeBlock.Builder sw = CodeBlock.builder();
+            sw.add("return switch (propertyName) {\n").indent();
+            for (FieldInfo f : mapLinks) sw.add("case $S -> $T.class;\n", f.name, getRawType(f.linkMapKeyType));
+            sw.add("default -> null;\n").unindent().add("};");
+            builder.addCode(sw.build());
+        }
+        return builder.build();
+    }
+
+    /** {@code ArcadeDoc_I<?> createLinkTarget(String)} — fresh target instance to populate a projection. */
+    public static MethodSpec createLinkTargetFactoryMethod(List<FieldInfo> fields, boolean isInterface) {
+        ClassName arcadeDoc = ClassName.get("xyz.jphil.arcadedb.datahelper", "ArcadeDoc_I");
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("createLinkTarget")
+                .addModifiers(implModifiers(isInterface))
+                .addAnnotation(Override.class)
+                .addParameter(String.class, "propertyName")
+                .returns(ParameterizedTypeName.get(arcadeDoc, WildcardTypeName.subtypeOf(Object.class)));
+
+        List<FieldInfo> links = fields.stream().filter(FieldInfo::isAnyLink).toList();
+        if (links.isEmpty()) {
+            builder.addStatement("return null");
+        } else {
+            CodeBlock.Builder sw = CodeBlock.builder();
+            sw.add("return switch (propertyName) {\n").indent();
+            for (FieldInfo f : links) sw.add("case $S -> new $T();\n", f.name, getRawType(f.linkTargetType));
+            sw.add("default -> null;\n").unindent().add("};");
+            builder.addCode(sw.build());
+        }
+        return builder.build();
+    }
+
+    // ========== Enum field support (Phase 1, PRP-28) — ArcadeData class path only ==========
+
+    /**
+     * For each enum-typed field, add a private static final {@code Map<String, EnumType>} built once
+     * from {@code EnumType.values()} (never {@code getEnumConstants()} — that would be reflection),
+     * keyed by {@code uuid()} for an {@code @AsUuid} enum or {@code name()} for {@code @AsName}. Then
+     * override {@code isEnumField}/{@code resolveEnumFromStorage} to dispatch to those maps.
+     *
+     * <p>This is the read-side counterpart to {@link xyz.jphil.datahelper.HasUuid#storageValue(Object)}
+     * on write: write is a generic runtime {@code instanceof} check (the concrete value is in hand),
+     * but read only has a {@code Class<?>} handle and a stored String, so the concrete map has to be
+     * generated per field, per entity, at the one place the concrete enum type is statically known.
+     * A lookup miss returns {@code null} — never throws — because an unmatched id means the row was
+     * written by newer code, not that it is corrupt.
+     */
+    public static void addEnumSupport(TypeSpec.Builder builder, List<FieldInfo> fields) {
+        List<FieldInfo> enumFields = fields.stream().filter(f -> f.isEnum).toList();
+        if (enumFields.isEmpty()) return;
+
+        ClassName mapClass = ClassName.get(Map.class);
+        ClassName hashMapClass = ClassName.get(HashMap.class);
+        ClassName stringClass = ClassName.get(String.class);
+
+        for (FieldInfo f : enumFields) {
+            TypeName enumType = getRawType(f.type);
+            String cap = ProcessorUtils.capitalize(f.name);
+            String builderMethodName = "$build" + cap + "EnumMap";
+            String mapFieldName = "$" + f.name + "$ENUM_MAP";
+            String keyAccessor = f.isEnumAsUuid ? "uuid" : "name";
+            ParameterizedTypeName mapType = ParameterizedTypeName.get(mapClass, stringClass, enumType);
+
+            builder.addMethod(MethodSpec.methodBuilder(builderMethodName)
+                    .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                    .returns(mapType)
+                    .addStatement("var m = new $T<$T, $T>()", hashMapClass, stringClass, enumType)
+                    .addStatement("for ($T c : $T.values()) m.put(c.$N(), c)", enumType, enumType, keyAccessor)
+                    .addStatement("return m")
+                    .build());
+
+            builder.addField(FieldSpec.builder(mapType, mapFieldName, Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                    .initializer("$N()", builderMethodName)
+                    .build());
+        }
+
+        builder.addMethod(booleanFieldPredicate("isEnumField", fields, f -> f.isEnum, false));
+
+        MethodSpec.Builder resolve = MethodSpec.methodBuilder("resolveEnumFromStorage")
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Override.class)
+                .addParameter(String.class, "propertyName")
+                .addParameter(String.class, "storedValue")
+                .returns(Object.class);
+        CodeBlock.Builder sw = CodeBlock.builder();
+        sw.add("return switch (propertyName) {\n").indent();
+        for (FieldInfo f : enumFields) {
+            sw.add("case $S -> $N.get(storedValue);\n", f.name, "$" + f.name + "$ENUM_MAP");
+        }
+        sw.add("default -> null;\n").unindent().add("};");
+        resolve.addCode(sw.build());
+        builder.addMethod(resolve.build());
     }
 }

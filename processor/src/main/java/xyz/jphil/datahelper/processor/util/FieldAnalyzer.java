@@ -52,6 +52,9 @@ public class FieldAnalyzer {
                     // Analyze field type
                     boolean isListField = utils.isListType(fieldTypeMirror);
                     boolean isMapField = utils.isMapType(fieldTypeMirror);
+                    boolean isLink = utils.isLinkType(fieldTypeMirror);
+                    boolean isLinkList = utils.isLinkListType(fieldTypeMirror);
+                    boolean isLinkMap = utils.isLinkMapType(fieldTypeMirror);
 
                     // Up-front guard: reject a nested DataHelper component declared as one of its
                     // generated siblings (Foo_IR/_I/_R/_A) instead of the concrete Foo. Runs before
@@ -68,6 +71,15 @@ public class FieldAnalyzer {
 
                     boolean isNestedDataHelper = !isListField && !isMapField && utils.isDataHelperType(fieldTypeMirror);
 
+                    // An enum-typed simple field (Phase 1, PRP-28). Whether it is actually storable
+                    // is a backend-specific question (the @AsUuid/@AsName requirement is enforced by
+                    // the ArcadeData processor, not here) — the base analyzer only needs to recognize
+                    // the shape so it doesn't fall into the generic "unsupported type" error below.
+                    boolean isEnum = !isListField && !isMapField && !isLink && !isLinkList && !isLinkMap
+                            && !isNestedDataHelper && utils.isEnumType(fieldTypeMirror);
+                    boolean isEnumAsUuid = isEnum && utils.isAsUuidEnum(fieldTypeMirror);
+                    boolean isEnumAsName = isEnum && utils.isAsNameEnum(fieldTypeMirror);
+
                     TypeName listElementType = null;
                     boolean isListOfDataHelper = false;
                     String listImplClass = null;
@@ -82,6 +94,10 @@ public class FieldAnalyzer {
                     boolean isNestedGenerated = false;
                     boolean isListElementGenerated = false;
                     boolean isMapValueGenerated = false;
+
+                    TypeName linkTargetType = null;
+                    TypeName linkMapKeyType = null;
+                    boolean isLinkTargetGenerated = false;
 
                     // === List Field Analysis and Validation ===
                     if (isListField) {
@@ -118,6 +134,40 @@ public class FieldAnalyzer {
                     else if (isNestedDataHelper) {
                         isNestedGenerated = utils.isGeneratedDataHelperType(fieldTypeMirror);
                     }
+                    // === Reference (LINK) Analysis ===
+                    else if (isLink || isLinkList || isLinkMap) {
+                        TypeMirror targetMirror = isLinkMap
+                                ? utils.getLinkMapValueTypeMirror(fieldTypeMirror)
+                                : utils.getLinkTargetTypeMirror(fieldTypeMirror);
+                        if (targetMirror == null) {
+                            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                                String.format("Field '%s' uses a raw Link/LinkList/LinkMap without a type parameter. "
+                                    + "Use Link<T>, LinkList<T>, or LinkMap<K,T> with an @ArcadeData target type.", fieldName),
+                                field);
+                            hasErrors = true;
+                        } else {
+                            linkTargetType = TypeName.get(targetMirror);
+                            isLinkTargetGenerated = utils.isGeneratedDataHelperType(targetMirror);
+                            if (!utils.isDataHelperType(targetMirror)) {
+                                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                                    String.format("Field '%s' links to '%s', which is not an @ArcadeData/DataHelper type. "
+                                        + "A reference target must itself be an @ArcadeData entity.", fieldName, targetMirror),
+                                    field);
+                                hasErrors = true;
+                            }
+                            if (isLinkMap) {
+                                linkMapKeyType = utils.getLinkMapKeyType(fieldTypeMirror);
+                            }
+                        }
+                    }
+                    // === Enum Field Analysis ===
+                    // Accepted structurally here regardless of annotation; a backend that cannot
+                    // store an unannotated enum (e.g. ArcadeData) enforces that separately, after
+                    // analysis, because "cannot store an enum" is a fact about that backend, not a
+                    // universal one.
+                    else if (isEnum) {
+                        // no further analysis needed — isEnumAsUuid/isEnumAsName already computed above
+                    }
                     // === Simple Field Validation ===
                     else if (!utils.isSupportedSimpleType(fieldTypeMirror)) {
                         processingEnv.getMessager().printMessage(
@@ -134,11 +184,21 @@ public class FieldAnalyzer {
                         hasErrors = true;
                     }
 
-                    fields.add(new FieldInfo(fieldName, fieldType, isListField, isNestedDataHelper,
+                    FieldInfo fi = new FieldInfo(fieldName, fieldType, isListField, isNestedDataHelper,
                                              isListOfDataHelper, listElementType, isMapField,
                                              mapKeyType, mapValueType, isMapOfDataHelper,
                                              listImplClass, mapImplClass,
-                                             isNestedGenerated, isListElementGenerated, isMapValueGenerated));
+                                             isNestedGenerated, isListElementGenerated, isMapValueGenerated);
+                    fi.isLink = isLink;
+                    fi.isLinkList = isLinkList;
+                    fi.isLinkMap = isLinkMap;
+                    fi.linkTargetType = linkTargetType;
+                    fi.linkMapKeyType = linkMapKeyType;
+                    fi.isLinkTargetGenerated = isLinkTargetGenerated;
+                    fi.isEnum = isEnum;
+                    fi.isEnumAsUuid = isEnumAsUuid;
+                    fi.isEnumAsName = isEnumAsName;
+                    fields.add(fi);
                 }
             }
         }

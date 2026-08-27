@@ -3,7 +3,18 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.github.xyz-jphil</groupId>
     <artifactId>xyz-jphil-datahelper-processor</artifactId>
-    <version>1.0</version>
+    <!--
+      1.1 — rolls up two fixes/additions, neither previously published:
+        * PRP-27: CodeGeneratorUtils.fieldsRef() fix for cross-package nested DataHelper imports in
+          @ArcadeData-generated FIELDS initializers (six call sites: DataField/ListDataField/
+          MapDataField/Link/LinkList/LinkMap).
+        * PRP-28 phase 1: EnumVocabProcessor validates every @AsUuid/@AsName enum at its own
+          declaration; FieldAnalyzer/FieldInfo/ProcessorUtils classify enum-typed fields
+          (isEnum/isEnumAsUuid/isEnumAsName); CodeGeneratorUtils.addEnumSupport generates the
+          reflection-free per-field uuid/name-to-constant map for a backend that needs it.
+        Additive; no change to previously generated output for non-enum fields (verified byte-stable).
+    -->
+    <version>1.1</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -14,12 +25,12 @@
         <dependency>
             <groupId>io.github.xyz-jphil</groupId>
             <artifactId>xyz-jphil-datahelper-annotations</artifactId>
-            <version>1.0</version>
+            <version>1.1</version>
         </dependency>
         <dependency>
             <groupId>io.github.xyz-jphil</groupId>
             <artifactId>xyz-jphil-datahelper-base</artifactId>
-            <version>1.0</version>
+            <version>1.1</version>
         </dependency>
         <dependency>
             <groupId>com.palantir.javapoet</groupId>

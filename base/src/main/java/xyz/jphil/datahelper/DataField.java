@@ -70,6 +70,7 @@ public final class DataField<PARENT extends DataHelper_I<PARENT>,
         this.name = name;
         this.type = type;
         this.nestedFields = nestedFields;
+        this.__ = name();
     }
 
     /**
@@ -96,7 +97,9 @@ public final class DataField<PARENT extends DataHelper_I<PARENT>,
         return nestedFields;
     }
     
-    public final String __ = name();
+    // Assigned in the constructor (not as a field initializer): a field initializer runs before the
+    // constructor body sets `name`, which would capture null. Mirrors Field/LinkField.
+    public final String __;
                         
     /**
      * Factory method to create a DataField instance.

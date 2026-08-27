@@ -3,7 +3,12 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.github.xyz-jphil</groupId>
     <artifactId>xyz-jphil-datahelper-annotations</artifactId>
-    <version>1.0</version>
+    <!--
+      1.1 — adds @AsUuid / @AsName / UuidEncoding (PRP-28 phase 1): declares whether an enum stores
+        its identity as a uuid or as its constant name. SOURCE retention, consistent with @Data.
+        Additive; no change to existing annotations.
+    -->
+    <version>1.1</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

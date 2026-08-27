@@ -3,12 +3,15 @@ package xyz.jphil.datahelper;
 /**
  * Sealed interface for type-safe field descriptors in DataHelper entities.
  *
- * <p>This is a sealed type allowing four implementations:
+ * <p>This is a sealed type allowing these implementations:
  * <ul>
  *   <li>{@link Field} - for simple fields (String, Integer, etc.)</li>
  *   <li>{@link DataField} - for nested DataHelper fields with type-safe chaining</li>
  *   <li>{@link ListDataField} - for list fields containing DataHelper elements</li>
  *   <li>{@link MapDataField} - for map fields with DataHelper values</li>
+ *   <li>{@link LinkField} - for a reference (LINK) to another DataHelper entity</li>
+ *   <li>{@link LinkListField} - for a list of references (LIST of LINK)</li>
+ *   <li>{@link LinkMapField} - for a keyed map of references (MAP of LINK)</li>
  * </ul>
  *
  * <p><b>Design Benefits:</b>
@@ -38,7 +41,8 @@ package xyz.jphil.datahelper;
  * @param <T> the value type of this field
  */
 public sealed interface Field_I<E extends DataHelper_I<E>, T>
-        permits Field, DataField, ListDataField, MapDataField {
+        permits Field, DataField, ListDataField, MapDataField,
+                LinkField, LinkListField, LinkMapField {
 
     /**
      * Get the field name.

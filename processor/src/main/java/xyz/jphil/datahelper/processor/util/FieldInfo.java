@@ -34,6 +34,31 @@ public class FieldInfo {
     /** True if the Map value DataHelper type is annotation-generated. */
     public final boolean isMapValueGenerated;
 
+    // ===== Reference (LINK) classification — set by FieldAnalyzer after construction =====
+    /** True if the field is a single reference {@code Link<T>}. */
+    public boolean isLink;
+    /** True if the field is a list of references {@code LinkList<T>}. */
+    public boolean isLinkList;
+    /** True if the field is a keyed map of references {@code LinkMap<K,T>}. */
+    public boolean isLinkMap;
+    /** The linked target type {@code T} (for Link/LinkList; the value type for LinkMap). */
+    public TypeName linkTargetType;
+    /** The key type {@code K} for {@code LinkMap<K,T>}. */
+    public TypeName linkMapKeyType;
+    /** True if the linked target type is annotation-generated (has a {@code _A} with FIELDS). */
+    public boolean isLinkTargetGenerated;
+
+    /** Any reference kind. */
+    public boolean isAnyLink() { return isLink || isLinkList || isLinkMap; }
+
+    // ===== Enum classification (Phase 1, PRP-28) — set by FieldAnalyzer after construction =====
+    /** True if the field's declared type is an enum (any enum — annotation presence is separate). */
+    public boolean isEnum;
+    /** True if the field's enum type carries {@code @AsUuid}. Only meaningful when {@link #isEnum}. */
+    public boolean isEnumAsUuid;
+    /** True if the field's enum type carries {@code @AsName}. Only meaningful when {@link #isEnum}. */
+    public boolean isEnumAsName;
+
     public FieldInfo(String name, TypeName type, boolean isListField, boolean isNestedDataHelper,
                      boolean isListOfDataHelper, TypeName listElementType, boolean isMapField,
                      TypeName mapKeyType, TypeName mapValueType, boolean isMapOfDataHelper,

@@ -1,9 +1,12 @@
 package xyz.jphil.datahelper.processor.util;
 
 import com.palantir.javapoet.TypeName;
+import xyz.jphil.datahelper.AsName;
+import xyz.jphil.datahelper.AsUuid;
 import xyz.jphil.datahelper.DataHelper;
 
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -294,5 +297,68 @@ public class ProcessorUtils {
         if (declaredType.getTypeArguments().size() < 2) return null;
 
         return declaredType.getTypeArguments().get(1);
+    }
+
+    // ========== Enum field detection (Phase 1, PRP-28) ==========
+
+    /** True if the type is an enum declaration (any enum — {@code @AsUuid}/{@code @AsName} presence is a separate question). */
+    public boolean isEnumType(TypeMirror type) {
+        if (type.getKind() != TypeKind.DECLARED) return false;
+        TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
+        return typeElement.getKind() == ElementKind.ENUM;
+    }
+
+    /** True if the enum type carries {@code @AsUuid}. Only meaningful when {@link #isEnumType} is true. */
+    public boolean isAsUuidEnum(TypeMirror type) {
+        TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
+        return typeElement.getAnnotation(AsUuid.class) != null;
+    }
+
+    /** True if the enum type carries {@code @AsName}. Only meaningful when {@link #isEnumType} is true. */
+    public boolean isAsNameEnum(TypeMirror type) {
+        TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
+        return typeElement.getAnnotation(AsName.class) != null;
+    }
+
+    // ========== Reference (LINK) carrier detection ==========
+    // Detected by fully-qualified name so the (generic) base processor stays decoupled from the
+    // ArcadeDB module — same approach as isListType/isMapType.
+
+    public static final String LINK_TYPE      = "xyz.jphil.arcadedb.datahelper.Link";
+    public static final String LINK_LIST_TYPE = "xyz.jphil.arcadedb.datahelper.LinkList";
+    public static final String LINK_MAP_TYPE  = "xyz.jphil.arcadedb.datahelper.LinkMap";
+
+    private boolean isQualifiedType(TypeMirror type, String qualifiedName) {
+        if (type.getKind() != TypeKind.DECLARED) return false;
+        TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
+        return typeElement.getQualifiedName().toString().equals(qualifiedName);
+    }
+
+    /** True if the field type is {@code Link<T>}. */
+    public boolean isLinkType(TypeMirror type) { return isQualifiedType(type, LINK_TYPE); }
+
+    /** True if the field type is {@code LinkList<T>}. */
+    public boolean isLinkListType(TypeMirror type) { return isQualifiedType(type, LINK_LIST_TYPE); }
+
+    /** True if the field type is {@code LinkMap<K,T>}. */
+    public boolean isLinkMapType(TypeMirror type) { return isQualifiedType(type, LINK_MAP_TYPE); }
+
+    /** The target type {@code T} of {@code Link<T>} / {@code LinkList<T>} (type argument 0). */
+    public TypeMirror getLinkTargetTypeMirror(TypeMirror type) {
+        DeclaredType declaredType = (DeclaredType) type;
+        return declaredType.getTypeArguments().isEmpty() ? null : declaredType.getTypeArguments().get(0);
+    }
+
+    /** The key type {@code K} of {@code LinkMap<K,T>} (type argument 0). */
+    public TypeName getLinkMapKeyType(TypeMirror type) {
+        DeclaredType declaredType = (DeclaredType) type;
+        return declaredType.getTypeArguments().size() < 2 ? null
+                : TypeName.get(declaredType.getTypeArguments().get(0));
+    }
+
+    /** The value type {@code T} of {@code LinkMap<K,T>} (type argument 1). */
+    public TypeMirror getLinkMapValueTypeMirror(TypeMirror type) {
+        DeclaredType declaredType = (DeclaredType) type;
+        return declaredType.getTypeArguments().size() < 2 ? null : declaredType.getTypeArguments().get(1);
     }
 }
