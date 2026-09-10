@@ -1,3 +1,3 @@
-xyz.jphil.datahelper.DataHelperProcessor
-xyz.jphil.datahelper.DataProcessor
-xyz.jphil.datahelper.EnumVocabProcessor
+datapotter.datahelper.DataHelperProcessor
+datapotter.datahelper.DataProcessor
+datapotter.datahelper.EnumVocabProcessor

@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.xyz-jphil</groupId>
-    <artifactId>xyz-jphil-datahelper-json</artifactId>
+    <groupId>io.github.datapotter</groupId>
+    <artifactId>datapotter-datahelper-json</artifactId>
     <!--
       1.2 — PRP-30: enums survive a JSON round trip, and a List of them reads back as constants.
         * FIX MinimalJsonWriter had no enum case at all, so an enum fell to the toString() fallback
@@ -26,6 +26,13 @@
     <name>DataHelper JSON Trait</name>
     <description>JSON serialization/deserialization trait for DataHelper - JVM only, uses direct property accessors</description>
 
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
@@ -35,8 +42,8 @@
     <dependencies>
         <!-- DataHelper Base - property accessors only -->
         <dependency>
-            <groupId>io.github.xyz-jphil</groupId>
-            <artifactId>xyz-jphil-datahelper-base</artifactId>
+            <groupId>io.github.datapotter</groupId>
+            <artifactId>datapotter-datahelper-base</artifactId>
             <version>1.3</version>
         </dependency>
     </dependencies>
