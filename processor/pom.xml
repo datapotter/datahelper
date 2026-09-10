@@ -4,6 +4,23 @@
     <groupId>io.github.xyz-jphil</groupId>
     <artifactId>xyz-jphil-datahelper-processor</artifactId>
     <!--
+      1.3 — PRP-30: List<E> of an @AsUuid/@AsName enum is accepted as a field shape.
+        * FieldAnalyzer no longer rejects an enum List element type, and classifies the field
+          (isEnumList / enumType, with isEnumAsUuid/isEnumAsName now describing the element).
+        * addEnumSupport emits the per-field constant map for a list field as well, plus an
+          isEnumListField override beside isEnumField — so this REQUIRES base 1.3.
+        * FIX the @DataHelper path had NO enum support at all: addEnumSupport was called only where
+          a generated CLASS existed (_A, on the @Data and @ArcadeData paths), and @DataHelper
+          generates interfaces only. An @AsUuid field on such a DTO came back null from fromMap and
+          fromJson while the identical @Data DTO worked. It now goes on _I, whose fields are
+          implicitly public static final — the "an interface cannot hold one" note it was written
+          under was wrong. Pre-existing since PRP-28 phase 1; found by PRP-30's test.
+        Additive; no change to generated output for a type with no enum field.
+      1.2 — PRP-29: the @Data path now generates enum support too. addEnumSupport was called only by
+        the @ArcadeData processor, and an embedded block IS a @Data type, so an enum inside one had
+        no stored-string-to-constant lookup at any depth. Same generator, second call site; the
+        @Override it emits now resolves against DataHelper_I (base 1.2), where isEnumField and
+        resolveEnumFromStorage moved to. Requires base 1.2. No change to non-enum codegen.
       1.1 — rolls up two fixes/additions, neither previously published:
         * PRP-27: CodeGeneratorUtils.fieldsRef() fix for cross-package nested DataHelper imports in
           @ArcadeData-generated FIELDS initializers (six call sites: DataField/ListDataField/
@@ -14,7 +31,7 @@
           reflection-free per-field uuid/name-to-constant map for a backend that needs it.
         Additive; no change to previously generated output for non-enum fields (verified byte-stable).
     -->
-    <version>1.1</version>
+    <version>1.3</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -30,7 +47,7 @@
         <dependency>
             <groupId>io.github.xyz-jphil</groupId>
             <artifactId>xyz-jphil-datahelper-base</artifactId>
-            <version>1.1</version>
+            <version>1.3</version>
         </dependency>
         <dependency>
             <groupId>com.palantir.javapoet</groupId>

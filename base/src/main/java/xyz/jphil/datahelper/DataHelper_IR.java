@@ -1,6 +1,7 @@
 package xyz.jphil.datahelper;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Readable contract for all DataHelper-generated types.
@@ -23,6 +24,22 @@ import java.util.List;
  * @param <E> the self type (for fluent/self-referential generics)
  */
 public interface DataHelper_IR<E extends DataHelper_IR<E>> {
+
+    // ========== Serialization ==========
+
+    /**
+     * Deep name&rarr;value map of this instance: nested DataHelper blocks (and those inside lists
+     * and maps) become nested maps, enum values become their stored string, {@code null} fields are
+     * omitted. The write half of the round trip whose read half is {@link DataHelper_I#fromMap}.
+     *
+     * <p>Declared here rather than on {@link DataHelper_I} so an immutable {@code _R} record
+     * projection converts too &mdash; nothing about producing a map needs a mutable instance.</p>
+     *
+     * @see MapWrites
+     */
+    default Map<String, Object> toMap() {
+        return MapWrites.toMap(this);
+    }
 
     // ========== Abstract Methods (Implemented by Generated Code) ==========
 

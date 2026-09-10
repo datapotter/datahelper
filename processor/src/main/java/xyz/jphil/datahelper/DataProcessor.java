@@ -110,6 +110,12 @@ public class DataProcessor extends AbstractProcessor {
         // Field-backed getters/setters; everything else is inherited from _IR/_I defaults.
         ProjectionGenerator.addDelegatingAccessors(a, fields);
 
+        // Enum fields: the reflection-free stored-string-to-constant lookup. On _A because this path
+        // has one; the @DataHelper path puts the same thing on its _I. Needed here and not only on
+        // the ArcadeData path because a @Data block is what an embedded block IS, so an enum three
+        // levels down inside one is read through this and nothing else.
+        CodeGeneratorUtils.addEnumSupport(a, fields, false);
+
         // Object methods (value-based) delegating to the DataHelper_I statics.
         a.addMethod(CodeGeneratorUtils.createEqualsMethod());
         a.addMethod(CodeGeneratorUtils.createHashCodeMethod());

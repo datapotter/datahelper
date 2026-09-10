@@ -4,11 +4,33 @@
     <groupId>io.github.xyz-jphil</groupId>
     <artifactId>xyz-jphil-datahelper-base</artifactId>
     <!--
-      1.1 — adds HasUuid (PRP-28 phase 1): implemented by an @AsUuid enum, plus the reflection-free
-        HasUuid.storageValue(Object) write-side conversion used by any backend's serialization trait.
-        Additive; no change to existing types.
+      1.3 — PRP-30: a List of enums is storable, on the same terms as a bare enum field.
+        * NEW DataHelper_I.isEnumListField(String), beside isEnumField. Generated code overrides it,
+          so a build pairing generated _A classes from processor 1.3 with base 1.2 does not compile.
+        * MapReads resolves each element of such a list through the same per-field lookup a bare enum
+          field uses. An element matching no constant is DROPPED, not stored as null: List<E> has no
+          way to keep the unrecognised string, and a null in that list would travel (List.copyOf in
+          the record projection, and every caller that iterates) and fail far from this field.
+        Additive for callers; source-compatible.
+      1.2 — PRP-29: map-to-object deserialisation moves DOWN to here, so it can reach a @Data
+        embedded block. Previously the only deserialiser lived on the ArcadeDB trait and was gated
+        on `instanceof ArcadeDoc_I`, which is false for every @Data block — such a block was written
+        correctly and read back null, and a List of them read back holding raw LinkedHashMaps inside
+        a list declared as the DTO type. Nothing in the walk was ArcadeDB-specific.
+        * NEW MapReads (the walk) + MapReadContext (what a backend adds: its own record types, and
+          field shapes only it has). The context travels with the recursion, not with the object, so
+          an embedded @Data block two levels down is still read in the outer backend's terms.
+        * NEW MapWrites, the mirror; DataHelper_I.fromMap(Map) and DataHelper_IR.toMap(), so a @Data
+          type round-trips through a plain map with no database on the classpath.
+        * MOVED IN from ArcadeDoc_I: isEnumField / resolveEnumFromStorage. Enum resolution is not a
+          database concept, and a @Data block's generated code cannot override a method declared on
+          a trait it does not implement.
+        * A nested value that cannot be given its declared type now throws, naming the type and the
+          field, instead of being stored as-is. Putting a foreign object into a typed list turned a
+          clear failure into a ClassCastException in unrelated code much later.
+        Additive for callers; source-compatible.
     -->
-    <version>1.1</version>
+    <version>1.3</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

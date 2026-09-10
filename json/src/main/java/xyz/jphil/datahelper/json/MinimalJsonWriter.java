@@ -1,6 +1,7 @@
 package xyz.jphil.datahelper.json;
 
 import xyz.jphil.datahelper.DataHelper_IR;
+import xyz.jphil.datahelper.HasUuid;
 
 import java.util.List;
 import java.util.Map;
@@ -75,6 +76,13 @@ public class MinimalJsonWriter {
             writeList(sb, (List<?>) value);
         } else if (value instanceof Map) {
             writeMap(sb, (Map<?, ?>) value);
+        } else if (value instanceof Enum<?>) {
+            // An enum's stored string, which is its uuid() under @AsUuid and its name() under
+            // @AsName. Without this it fell to the toString() fallback below and wrote the constant
+            // NAME either way, while fromJson resolves through the same uuid-keyed lookup the
+            // database read uses — so an @AsUuid enum was written in a form its own reader could
+            // not resolve, and came back null.
+            writeString(sb, String.valueOf(HasUuid.storageValue(value)));
         } else {
             // Fallback: toString() and escape
             writeString(sb, value.toString());

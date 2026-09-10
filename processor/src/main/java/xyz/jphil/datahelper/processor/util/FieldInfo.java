@@ -51,13 +51,20 @@ public class FieldInfo {
     /** Any reference kind. */
     public boolean isAnyLink() { return isLink || isLinkList || isLinkMap; }
 
-    // ===== Enum classification (Phase 1, PRP-28) — set by FieldAnalyzer after construction =====
+    // ===== Enum classification (PRP-28 phase 1, PRP-30) — set by FieldAnalyzer after construction =====
     /** True if the field's declared type is an enum (any enum — annotation presence is separate). */
     public boolean isEnum;
-    /** True if the field's enum type carries {@code @AsUuid}. Only meaningful when {@link #isEnum}. */
+    /** True if the field is a {@code List<E>} whose element type {@code E} is an enum (PRP-30). */
+    public boolean isEnumList;
+    /** The enum type itself: the field type when {@link #isEnum}, the element type when {@link #isEnumList}. */
+    public TypeName enumType;
+    /** True if {@link #enumType} carries {@code @AsUuid}. Only meaningful when {@link #isAnyEnum}. */
     public boolean isEnumAsUuid;
-    /** True if the field's enum type carries {@code @AsName}. Only meaningful when {@link #isEnum}. */
+    /** True if {@link #enumType} carries {@code @AsName}. Only meaningful when {@link #isAnyEnum}. */
     public boolean isEnumAsName;
+
+    /** Any enum-valued shape: a bare enum field or a list of them. */
+    public boolean isAnyEnum() { return isEnum || isEnumList; }
 
     public FieldInfo(String name, TypeName type, boolean isListField, boolean isNestedDataHelper,
                      boolean isListOfDataHelper, TypeName listElementType, boolean isMapField,

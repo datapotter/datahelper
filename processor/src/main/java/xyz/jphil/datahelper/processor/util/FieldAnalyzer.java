@@ -71,14 +71,17 @@ public class FieldAnalyzer {
 
                     boolean isNestedDataHelper = !isListField && !isMapField && utils.isDataHelperType(fieldTypeMirror);
 
-                    // An enum-typed simple field (Phase 1, PRP-28). Whether it is actually storable
-                    // is a backend-specific question (the @AsUuid/@AsName requirement is enforced by
-                    // the ArcadeData processor, not here) — the base analyzer only needs to recognize
-                    // the shape so it doesn't fall into the generic "unsupported type" error below.
+                    // An enum-typed simple field (PRP-28 phase 1) or a List of them (PRP-30). Whether
+                    // either is actually storable is a backend-specific question (the @AsUuid/@AsName
+                    // requirement is enforced by the ArcadeData processor, not here) — the base
+                    // analyzer only needs to recognize the shape so it doesn't fall into the generic
+                    // "unsupported type" error below.
                     boolean isEnum = !isListField && !isMapField && !isLink && !isLinkList && !isLinkMap
                             && !isNestedDataHelper && utils.isEnumType(fieldTypeMirror);
-                    boolean isEnumAsUuid = isEnum && utils.isAsUuidEnum(fieldTypeMirror);
-                    boolean isEnumAsName = isEnum && utils.isAsNameEnum(fieldTypeMirror);
+                    TypeMirror enumMirror = isEnum ? fieldTypeMirror : enumListElement(fieldTypeMirror, isListField);
+                    boolean isEnumList = !isEnum && enumMirror != null;
+                    boolean isEnumAsUuid = enumMirror != null && utils.isAsUuidEnum(enumMirror);
+                    boolean isEnumAsName = enumMirror != null && utils.isAsNameEnum(enumMirror);
 
                     TypeName listElementType = null;
                     boolean isListOfDataHelper = false;
@@ -196,6 +199,8 @@ public class FieldAnalyzer {
                     fi.linkMapKeyType = linkMapKeyType;
                     fi.isLinkTargetGenerated = isLinkTargetGenerated;
                     fi.isEnum = isEnum;
+                    fi.isEnumList = isEnumList;
+                    fi.enumType = enumMirror == null ? null : TypeName.get(enumMirror);
                     fi.isEnumAsUuid = isEnumAsUuid;
                     fi.isEnumAsName = isEnumAsName;
                     fields.add(fi);
@@ -204,6 +209,16 @@ public class FieldAnalyzer {
         }
 
         return hasErrors ? null : fields;
+    }
+
+    /**
+     * The enum element type of a {@code List<E>} field, or {@code null} if the field is not a list
+     * or its element type is not an enum.
+     */
+    private TypeMirror enumListElement(TypeMirror fieldTypeMirror, boolean isListField) {
+        if (!isListField) return null;
+        var element = utils.getListElementTypeMirror(fieldTypeMirror);
+        return element != null && utils.isEnumType(element) ? element : null;
     }
 
     /** Generated sibling suffixes a nested DataHelper field must NOT be declared as. */
@@ -337,14 +352,17 @@ public class FieldAnalyzer {
             return true;
         }
 
-        // Validate element type
+        // Validate element type. An enum element is accepted structurally here (PRP-30), on the same
+        // terms as a bare enum field: whether it is storable is the backend's rule, not this one.
         boolean isListOfDataHelper = utils.isDataHelperType(elementTypeMirror);
-        if (!isListOfDataHelper && !utils.isSupportedSimpleType(elementTypeMirror)) {
+        if (!isListOfDataHelper && !utils.isEnumType(elementTypeMirror)
+                && !utils.isSupportedSimpleType(elementTypeMirror)) {
             processingEnv.getMessager().printMessage(
                 Diagnostic.Kind.ERROR,
                 String.format(
                     "Field '%s' is a List with unsupported element type '%s'. " +
-                    "List elements must be: primitives, boxed primitives, String, or @DataHelper types.",
+                    "List elements must be: primitives, boxed primitives, String, @AsUuid/@AsName enums, " +
+                    "or @DataHelper types.",
                     fieldName,
                     elementTypeMirror
                 ),

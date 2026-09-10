@@ -6,7 +6,21 @@
 
     <groupId>io.github.xyz-jphil</groupId>
     <artifactId>xyz-jphil-datahelper-json</artifactId>
-    <version>1.0</version>
+    <!--
+      1.2 — PRP-30: enums survive a JSON round trip, and a List of them reads back as constants.
+        * FIX MinimalJsonWriter had no enum case at all, so an enum fell to the toString() fallback
+          and was written as the constant NAME — even under @AsUuid, where fromJson resolves through
+          a uuid-keyed lookup, so the value came back null. toJson wrote a form its own reader could
+          not read. Pre-existing since PRP-28 phase 1 for a bare enum field; found by PRP-30's list.
+        * The list side comes free from base 1.3, since fromJson is the parse plus fromMap.
+        Requires base 1.3.
+      1.1 — PRP-29: fromJson is now the parse plus DataHelper_I.fromMap (base 1.2), replacing this
+        trait's own copy of the object walk. That copy was gated on `instanceof Json_I`, so a nested
+        @Data block read back null and a List of them read back holding raw maps — the same defect,
+        and the same cause, as the ArcadeDB one this PRP was opened for. Behaviour is otherwise
+        unchanged, and enum-typed fields now resolve on read, which they previously did not.
+    -->
+    <version>1.2</version>
     <packaging>jar</packaging>
 
     <name>DataHelper JSON Trait</name>
@@ -23,7 +37,7 @@
         <dependency>
             <groupId>io.github.xyz-jphil</groupId>
             <artifactId>xyz-jphil-datahelper-base</artifactId>
-            <version>1.0</version>
+            <version>1.3</version>
         </dependency>
     </dependencies>
 </project>

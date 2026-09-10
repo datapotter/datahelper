@@ -12,11 +12,62 @@ import java.util.Objects;
  * bases implement this; immutable {@code _R} record projections implement only
  * {@link DataHelper_IR}.</p>
  *
- * <p>This interface contains ONLY the property accessor contract. Serialization is
- * provided by composable trait interfaces (e.g., Json, ArcadeDB) that build upon
- * these accessors.</p>
+ * <p>Beyond the property accessor contract this interface carries one piece of behaviour:
+ * {@link #fromMap(Map)}, deserialization from a plain name&rarr;value map. It is here rather than
+ * on a backend trait because it needs nothing a backend provides &mdash; see {@link MapReads}.
+ * Backend traits (Json, ArcadeDB) add the formats and field shapes that are theirs alone.</p>
  */
 public interface DataHelper_I<E extends DataHelper_I<E>> extends DataHelper_IR<E> {
+
+    // ========== Deserialization ==========
+
+    /**
+     * Populate this instance from a plain name&rarr;value map, recursing through nested DataHelper
+     * blocks, lists of them and maps of them. The read half of the round trip whose write half is
+     * {@link DataHelper_IR#toMap()}.
+     *
+     * <p>Absent keys and {@code null} values leave a field untouched, so a partial map is a partial
+     * update. Enum fields resolve from their stored string. Backend traits override this to bring
+     * their own {@link MapReadContext} &mdash; so an ArcadeDB entity read this way still resolves
+     * its references.</p>
+     *
+     * @param map the source map; {@code null} is a no-op
+     * @return this instance for fluent chaining
+     */
+    @SuppressWarnings("unchecked")
+    default E fromMap(Map<String, Object> map) {
+        return MapReads.read((E) this, map, MapReadContext.PLAIN);
+    }
+
+    // ===== Enum field support (PRP-28 phase 1, PRP-30) — overridden by generated code =====
+
+    /** True if the property is an enum-typed field with a declared {@code @AsUuid}/{@code @AsName} encoding. */
+    default boolean isEnumField(String propertyName) { return false; }
+
+    /**
+     * True if the property is a {@code List<E>} whose element type is such an enum.
+     *
+     * <p>Distinct from {@link #isEnumField} because the two are read differently — one stored string
+     * against a list of them — while sharing one {@link #resolveEnumFromStorage} per field. A field
+     * is never both.</p>
+     */
+    default boolean isEnumListField(String propertyName) { return false; }
+
+    /**
+     * Resolve a stored String (a uuid or a name, per the field's enum) back to its constant. Serves
+     * both shapes: the whole value of an {@link #isEnumField} property, and each element of an
+     * {@link #isEnumListField} one.
+     *
+     * <p>Never throws: an id matching no constant means the value was written by newer code than
+     * this build, not that it is corrupt, so {@code null} is returned. Default no-op; generated
+     * code with enum fields overrides with a real, reflection-free lookup.</p>
+     *
+     * <p>The read-side counterpart to {@link HasUuid#storageValue(Object)} on write: write is a
+     * generic runtime {@code instanceof} on the value in hand, but read has only a {@code Class<?>}
+     * handle and a string, so the constant set has to be generated per field &mdash; at the one
+     * place the concrete enum type is statically known.</p>
+     */
+    default Object resolveEnumFromStorage(String propertyName, String storedValue) { return null; }
 
     // ========== Abstract / Default Write Methods (Implemented by Generated Code) ==========
 

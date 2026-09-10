@@ -817,13 +817,18 @@ public class CodeGeneratorUtils {
         return builder.build();
     }
 
-    // ========== Enum field support (Phase 1, PRP-28) — ArcadeData class path only ==========
+    // ===== Enum field support (PRP-28 phase 1, PRP-30) — class targets only (_A on either path) =====
 
     /**
-     * For each enum-typed field, add a private static final {@code Map<String, EnumType>} built once
-     * from {@code EnumType.values()} (never {@code getEnumConstants()} — that would be reflection),
-     * keyed by {@code uuid()} for an {@code @AsUuid} enum or {@code name()} for {@code @AsName}. Then
-     * override {@code isEnumField}/{@code resolveEnumFromStorage} to dispatch to those maps.
+     * For each enum-valued field — a bare {@code E} or a {@code List<E>} — add a private static final
+     * {@code Map<String, E>} built once from {@code E.values()} (never {@code getEnumConstants()} —
+     * that would be reflection), keyed by {@code uuid()} for an {@code @AsUuid} enum or {@code name()}
+     * for {@code @AsName}. Then override {@code isEnumField}/{@code isEnumListField}/{@code
+     * resolveEnumFromStorage} to dispatch to those maps.
+     *
+     * <p>The two shapes share one resolver: a list element and a bare field are the same stored
+     * string, so {@code resolveEnumFromStorage} is keyed by field name alone and the caller decides
+     * whether it is resolving one value or each element of a list.</p>
      *
      * <p>This is the read-side counterpart to {@link xyz.jphil.datahelper.HasUuid#storageValue(Object)}
      * on write: write is a generic runtime {@code instanceof} check (the concrete value is in hand),
@@ -831,17 +836,27 @@ public class CodeGeneratorUtils {
      * generated per field, per entity, at the one place the concrete enum type is statically known.
      * A lookup miss returns {@code null} — never throws — because an unmatched id means the row was
      * written by newer code, not that it is corrupt.
+     *
+     * <p>Emitted on whichever generated type is the one a value is read INTO: the {@code _A} sealed
+     * base on the {@code @Data} and {@code @ArcadeData} paths, and the {@code _I} writable interface
+     * on the {@code @DataHelper} path, which has no class of its own. An interface target only
+     * changes modifiers — its fields are implicitly {@code public static final} — so both paths get
+     * the same lookup. Every path needs it: an embedded block is a {@code @Data} type, and a
+     * {@code @DataHelper} DTO reads back through {@code fromMap}/{@code fromJson} like any other.
      */
-    public static void addEnumSupport(TypeSpec.Builder builder, List<FieldInfo> fields) {
-        List<FieldInfo> enumFields = fields.stream().filter(f -> f.isEnum).toList();
+    public static void addEnumSupport(TypeSpec.Builder builder, List<FieldInfo> fields, boolean isInterface) {
+        List<FieldInfo> enumFields = fields.stream().filter(FieldInfo::isAnyEnum).toList();
         if (enumFields.isEmpty()) return;
 
         ClassName mapClass = ClassName.get(Map.class);
         ClassName hashMapClass = ClassName.get(HashMap.class);
         ClassName stringClass = ClassName.get(String.class);
+        Modifier[] fieldModifiers = isInterface
+                ? new Modifier[]{Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL}
+                : new Modifier[]{Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL};
 
         for (FieldInfo f : enumFields) {
-            TypeName enumType = getRawType(f.type);
+            TypeName enumType = getRawType(f.enumType);
             String cap = ProcessorUtils.capitalize(f.name);
             String builderMethodName = "$build" + cap + "EnumMap";
             String mapFieldName = "$" + f.name + "$ENUM_MAP";
@@ -856,15 +871,16 @@ public class CodeGeneratorUtils {
                     .addStatement("return m")
                     .build());
 
-            builder.addField(FieldSpec.builder(mapType, mapFieldName, Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+            builder.addField(FieldSpec.builder(mapType, mapFieldName, fieldModifiers)
                     .initializer("$N()", builderMethodName)
                     .build());
         }
 
-        builder.addMethod(booleanFieldPredicate("isEnumField", fields, f -> f.isEnum, false));
+        builder.addMethod(booleanFieldPredicate("isEnumField", fields, f -> f.isEnum, isInterface));
+        builder.addMethod(booleanFieldPredicate("isEnumListField", fields, f -> f.isEnumList, isInterface));
 
         MethodSpec.Builder resolve = MethodSpec.methodBuilder("resolveEnumFromStorage")
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(implModifiers(isInterface))
                 .addAnnotation(Override.class)
                 .addParameter(String.class, "propertyName")
                 .addParameter(String.class, "storedValue")

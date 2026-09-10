@@ -201,6 +201,11 @@ public final class ProjectionGenerator {
         b.addMethod(CodeGeneratorUtils.createListElementMethod(fields, true));
         CodeGeneratorUtils.addMapWriteMethods(b, fields, true);
 
+        // Enum fields: the stored-string-to-constant lookup goes on _I, the only generated type this
+        // path has that a value is read INTO. Without it a @DataHelper DTO had no enum resolution at
+        // all — an @AsUuid field came back null from fromMap/fromJson while a @Data one did not.
+        CodeGeneratorUtils.addEnumSupport(b, fields, true);
+
         b.addMethod(buildToRecordDefault(pkg, className, fields));
         return b.build();
     }
