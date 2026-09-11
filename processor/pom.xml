@@ -31,7 +31,7 @@
           reflection-free per-field uuid/name-to-constant map for a backend that needs it.
         Additive; no change to previously generated output for non-enum fields (verified byte-stable).
     -->
-    <version>1.3</version>
+    <version>1.4-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>DataPotter DataHelper Processor</name>

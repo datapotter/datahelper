@@ -30,7 +30,7 @@
           clear failure into a ClassCastException in unrelated code much later.
         Additive for callers; source-compatible.
     -->
-    <version>1.3</version>
+    <version>1.4-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>DataPotter DataHelper Base</name>

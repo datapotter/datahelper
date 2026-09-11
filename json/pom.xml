@@ -20,7 +20,7 @@
         and the same cause, as the ArcadeDB one this PRP was opened for. Behaviour is otherwise
         unchanged, and enum-typed fields now resolve on read, which they previously did not.
     -->
-    <version>1.2</version>
+    <version>1.3-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>DataPotter DataHelper JSON</name>
