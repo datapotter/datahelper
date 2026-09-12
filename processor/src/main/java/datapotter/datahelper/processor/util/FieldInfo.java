@@ -62,9 +62,22 @@ public class FieldInfo {
     public boolean isEnumAsUuid;
     /** True if {@link #enumType} carries {@code @AsName}. Only meaningful when {@link #isAnyEnum}. */
     public boolean isEnumAsName;
+    /** True if {@link #enumType} carries {@code @EnumData} (PRP-34). Only meaningful when {@link #isAnyEnum}. */
+    public boolean isEnumGenerated;
 
     /** Any enum-valued shape: a bare enum field or a list of them. */
     public boolean isAnyEnum() { return isEnum || isEnumList; }
+
+    /**
+     * Whether the stored value is resolved by the enum's own generated {@code Foo_I.fromStorage}
+     * rather than by a lookup this entity builds for itself (PRP-34).
+     *
+     * <p>Requires a declared storage form as well as {@code @EnumData}: {@code fromStorage} is
+     * generated only where there is a key to resolve against.
+     */
+    public boolean resolvesThroughEnumData() {
+        return isEnumGenerated && (isEnumAsUuid || isEnumAsName);
+    }
 
     public FieldInfo(String name, TypeName type, boolean isListField, boolean isNestedDataHelper,
                      boolean isListOfDataHelper, TypeName listElementType, boolean isMapField,

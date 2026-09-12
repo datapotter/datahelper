@@ -82,6 +82,7 @@ public class FieldAnalyzer {
                     boolean isEnumList = !isEnum && enumMirror != null;
                     boolean isEnumAsUuid = enumMirror != null && utils.isAsUuidEnum(enumMirror);
                     boolean isEnumAsName = enumMirror != null && utils.isAsNameEnum(enumMirror);
+                    boolean isEnumGenerated = enumMirror != null && utils.isEnumDataEnum(enumMirror);
 
                     TypeName listElementType = null;
                     boolean isListOfDataHelper = false;
@@ -203,6 +204,7 @@ public class FieldAnalyzer {
                     fi.enumType = enumMirror == null ? null : TypeName.get(enumMirror);
                     fi.isEnumAsUuid = isEnumAsUuid;
                     fi.isEnumAsName = isEnumAsName;
+                    fi.isEnumGenerated = isEnumGenerated;
                     fields.add(fi);
                 }
             }

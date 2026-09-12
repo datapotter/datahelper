@@ -1,3 +1,4 @@
 datapotter.datahelper.DataHelperProcessor
 datapotter.datahelper.DataProcessor
 datapotter.datahelper.EnumVocabProcessor
+datapotter.datahelper.EnumDataProcessor

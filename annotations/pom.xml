@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>io.github.datapotter</groupId>
+
+    <parent>
+        <groupId>io.github.datapotter</groupId>
+        <artifactId>datapotter-datahelper</artifactId>
+        <version>2.0-SNAPSHOT</version>
+    </parent>
+
     <artifactId>datapotter-datahelper-annotations</artifactId>
     <!--
       1.1 — adds @AsUuid / @AsName / UuidEncoding (PRP-28 phase 1): declares whether an enum stores
         its identity as a uuid or as its constant name. SOURCE retention, consistent with @Data.
         Additive; no change to existing annotations.
     -->
-    <version>1.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>DataPotter DataHelper Annotations</name>

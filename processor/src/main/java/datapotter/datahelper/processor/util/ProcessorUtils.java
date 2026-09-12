@@ -1,9 +1,11 @@
 package datapotter.datahelper.processor.util;
 
+import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.TypeName;
 import datapotter.datahelper.AsName;
 import datapotter.datahelper.AsUuid;
 import datapotter.datahelper.DataHelper;
+import datapotter.datahelper.EnumData;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.ElementKind;
@@ -318,6 +320,26 @@ public class ProcessorUtils {
     public boolean isAsNameEnum(TypeMirror type) {
         TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
         return typeElement.getAnnotation(AsName.class) != null;
+    }
+
+    /**
+     * True if the enum type carries {@code @EnumData}, so it owns a generated {@code Foo_I} and a
+     * consumer can resolve a stored value through it rather than building its own lookup. Only
+     * meaningful when {@link #isEnumType} is true.
+     */
+    public boolean isEnumDataEnum(TypeMirror type) {
+        TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
+        return typeElement.getAnnotation(EnumData.class) != null;
+    }
+
+    /**
+     * The generated companion of an {@code @EnumData} enum: {@code Foo_I}, a top-level type beside
+     * the enum. Correct for a nested enum too, whose companion is generated top-level in the same
+     * package under the enum's own simple name.
+     */
+    public static ClassName enumDataInterface(TypeName enumType) {
+        if (!(enumType instanceof ClassName cn)) return null;
+        return ClassName.get(cn.packageName(), cn.simpleName() + "_I");
     }
 
     // ========== Reference (LINK) carrier detection ==========

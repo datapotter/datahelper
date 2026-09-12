@@ -30,11 +30,18 @@ import java.lang.annotation.Target;
  * enum must {@code implement HasUuid}, it must not also carry {@link AsName}, and every constant's
  * uuid literal must match the declared encoding's alphabet and fixed length.
  *
+ * <p><b>Retention is {@code CLASS}, deliberately.</b> A processor compiling a DIFFERENT module has
+ * to be able to see this: with {@code SOURCE} retention the annotation is absent from the class
+ * file, so an entity compiled against a jar of enums would read no annotation, fall back to storing
+ * {@code name()}, and silently write the wrong thing with a green build. {@code CLASS} costs
+ * nothing at runtime — the JVM does not load such annotations — and makes the declaration mean the
+ * same thing on both sides of a module boundary.
+ *
  * @see AsName
  * @see HasUuid
  * @see UuidEncoding
  */
-@Retention(RetentionPolicy.SOURCE)
+@Retention(RetentionPolicy.CLASS)
 @Target(ElementType.TYPE)
 public @interface AsUuid {
     /** The encoding the uuid literals are written in. No default — a genuine choice, always stated. */

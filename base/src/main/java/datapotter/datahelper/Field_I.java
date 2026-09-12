@@ -12,7 +12,14 @@ package datapotter.datahelper;
  *   <li>{@link LinkField} - for a reference (LINK) to another DataHelper entity</li>
  *   <li>{@link LinkListField} - for a list of references (LIST of LINK)</li>
  *   <li>{@link LinkMapField} - for a keyed map of references (MAP of LINK)</li>
+ *   <li>{@link EnumField} - for an enum field, carrying its own storage resolver</li>
+ *   <li>{@link EnumListField} - for a list of enums, resolving element-wise</li>
  * </ul>
+ *
+ * <p><b>On adding to this list:</b> every consumer dispatches over these with an {@code instanceof}
+ * chain that falls through to plain-field handling, never an exhaustive {@code switch}, so a new
+ * descriptor is additive. A new shape that must NOT be treated as a plain scalar has to be added to
+ * those chains deliberately.</p>
  *
  * <p><b>Design Benefits:</b>
  * <ul>
@@ -42,7 +49,8 @@ package datapotter.datahelper;
  */
 public sealed interface Field_I<E extends DataHelper_I<E>, T>
         permits Field, DataField, ListDataField, MapDataField,
-                LinkField, LinkListField, LinkMapField {
+                LinkField, LinkListField, LinkMapField,
+                EnumField, EnumListField {
 
     /**
      * Get the field name.

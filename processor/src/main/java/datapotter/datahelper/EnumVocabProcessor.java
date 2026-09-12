@@ -1,12 +1,8 @@
 package datapotter.datahelper;
 
 import com.google.auto.service.AutoService;
-import com.sun.source.tree.ExpressionTree;
-import com.sun.source.tree.LiteralTree;
-import com.sun.source.tree.NewClassTree;
-import com.sun.source.tree.Tree;
-import com.sun.source.tree.VariableTree;
 import com.sun.source.util.Trees;
+import datapotter.datahelper.processor.util.EnumConstants;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Processor;
@@ -22,7 +18,9 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -91,10 +89,14 @@ public class EnumVocabProcessor extends AbstractProcessor {
     }
 
     private void validateAsUuid(TypeElement enumType, AsUuid asUuid) {
-        if (!implementsHasUuid(enumType)) {
+        // @EnumData generates a Foo_E that extends HasUuid and supplies uuid(), so the requirement is
+        // met by construction. It also cannot be seen from here: Foo_E does not exist yet on this
+        // round, and the original enum is not revisited on a later one.
+        boolean generated = enumType.getAnnotation(EnumData.class) != null;
+        if (!generated && !implementsHasUuid(enumType)) {
             error(enumType, "Enum '" + enumType.getSimpleName() + "' is annotated @AsUuid but does not "
                     + "implement HasUuid. Add 'implements HasUuid' and a uuid() accessor returning "
-                    + "each constant's id.");
+                    + "each constant's id, or add @EnumData to have both generated.");
             return;
         }
 
@@ -102,11 +104,9 @@ public class EnumVocabProcessor extends AbstractProcessor {
         Pattern alphabet = Pattern.compile(encoding.alphabetPattern());
         Map<String, String> seenLiteralToOwner = new HashMap<>();
 
-        for (Element enclosed : enumType.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.ENUM_CONSTANT) continue;
-            VariableElement constant = (VariableElement) enclosed;
+        for (VariableElement constant : EnumConstants.of(enumType)) {
             String constantName = constant.getSimpleName().toString();
-            String literal = extractUuidLiteral(constant);
+            String literal = EnumConstants.firstStringLiteral(trees, constant);
 
             if (literal == null) {
                 error(constant, "Could not read the uuid literal passed to '" + constantName + "'. "
@@ -132,31 +132,28 @@ public class EnumVocabProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * Whether {@code HasUuid} is reachable at all, not merely declared directly.
+     *
+     * <p>Was a scan of the direct interfaces only, which made a {@code HasUuid} inherited through a
+     * shared vocabulary interface invisible and failed the build — so consumers worked around it by
+     * having such an interface deliberately NOT extend {@code HasUuid} and naming both on every
+     * enum. Nothing was gained by the narrowness: an enum that reaches {@code HasUuid} by any route
+     * must still supply {@code uuid()}, and javac enforces that on its own.
+     */
     private boolean implementsHasUuid(TypeElement enumType) {
-        for (TypeMirror iface : enumType.getInterfaces()) {
-            if (iface.toString().startsWith("datapotter.datahelper.HasUuid")) return true;
-        }
-        return false;
+        return reachesHasUuid(enumType.getInterfaces(), new HashSet<>());
     }
 
-    /**
-     * Read the literal string passed as an enum constant's first constructor argument, directly
-     * from source. {@code VariableElement.getConstantValue()} cannot do this — an enum constant is a
-     * constructor call, not a compile-time constant expression in the JLS sense — so this walks the
-     * javac Compiler Tree API instead. {@code com.sun.source.tree}/{@code .util} are part of
-     * {@code jdk.compiler}'s ordinary exported surface (unlike {@code com.sun.tools.javac.*}
-     * internals), so this needs no {@code --add-exports} and runs under plain {@code javac}.
-     */
-    private String extractUuidLiteral(VariableElement constant) {
-        Tree tree = trees.getTree(constant);
-        if (!(tree instanceof VariableTree vt)) return null;
-        ExpressionTree init = vt.getInitializer();
-        if (!(init instanceof NewClassTree nct)) return null;
-        if (nct.getArguments().isEmpty()) return null;
-        ExpressionTree arg0 = nct.getArguments().get(0);
-        if (!(arg0 instanceof LiteralTree lit)) return null;
-        Object value = lit.getValue();
-        return value instanceof String s ? s : null;
+    private boolean reachesHasUuid(List<? extends TypeMirror> interfaces, Set<String> seen) {
+        for (TypeMirror iface : interfaces) {
+            String name = iface.toString();
+            if (name.startsWith("datapotter.datahelper.HasUuid")) return true;
+            if (!seen.add(name)) continue;
+            Element resolved = processingEnv.getTypeUtils().asElement(iface);
+            if (resolved instanceof TypeElement te && reachesHasUuid(te.getInterfaces(), seen)) return true;
+        }
+        return false;
     }
 
     private void error(Element element, String message) {

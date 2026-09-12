@@ -21,7 +21,7 @@ import java.lang.annotation.Target;
  *
  * @see AsUuid
  */
-@Retention(RetentionPolicy.SOURCE)
+@Retention(RetentionPolicy.CLASS)
 @Target(ElementType.TYPE)
 public @interface AsName {
 }

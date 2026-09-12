@@ -2,6 +2,8 @@ package datapotter.datahelper.processor.util;
 
 import com.palantir.javapoet.*;
 import datapotter.datahelper.DataField;
+import datapotter.datahelper.EnumField;
+import datapotter.datahelper.EnumListField;
 import datapotter.datahelper.Field;
 import datapotter.datahelper.Field_I;
 import datapotter.datahelper.LinkField;
@@ -177,6 +179,27 @@ public class CodeGeneratorUtils {
                 } else {
                     sb.initializer("new $T($S, $T.class, $T.class)",
                         ClassName.get(LinkMapField.class), field.name, key, value);
+                }
+                builder.addField(sb.build());
+            } else if (field.isAnyEnum()) {
+                // EnumField/EnumListField carry the field's own storage resolver, so the descriptor
+                // and the knowledge of how to read the field back stay in one place.
+                TypeName owner = ClassName.get(packageName, className);
+                TypeName enumType = getRawType(field.enumType);
+                ClassName symClass = ClassName.get(field.isEnumList ? EnumListField.class : EnumField.class);
+                TypeName symType = ParameterizedTypeName.get(symClass, owner, enumType);
+
+                FieldSpec.Builder sb = FieldSpec.builder(symType, symbolName,
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
+                if (field.resolvesThroughEnumData()) {
+                    sb.initializer("$T.generated($S, $T.class, $T::fromStorage)",
+                            symClass, field.name, enumType, ProcessorUtils.enumDataInterface(enumType));
+                } else {
+                    // values() is a synthetic method, not reflection: passing the constants in keeps
+                    // the generic descriptor off Class.getEnumConstants() and safe under TeaVM.
+                    sb.initializer("$T.$N($S, $T.class, $T.values())",
+                            symClass, field.isEnumAsUuid ? "byUuid" : "byName",
+                            field.name, enumType, enumType);
                 }
                 builder.addField(sb.build());
             } else {
@@ -817,64 +840,39 @@ public class CodeGeneratorUtils {
         return builder.build();
     }
 
-    // ===== Enum field support (PRP-28 phase 1, PRP-30) — class targets only (_A on either path) =====
+    // ===== Enum field support (PRP-28 phase 1, PRP-30, PRP-34) =====
 
     /**
-     * For each enum-valued field — a bare {@code E} or a {@code List<E>} — add a private static final
-     * {@code Map<String, E>} built once from {@code E.values()} (never {@code getEnumConstants()} —
-     * that would be reflection), keyed by {@code uuid()} for an {@code @AsUuid} enum or {@code name()}
-     * for {@code @AsName}. Then override {@code isEnumField}/{@code isEnumListField}/{@code
-     * resolveEnumFromStorage} to dispatch to those maps.
+     * Override {@code isEnumField}/{@code isEnumListField}/{@code resolveEnumFromStorage}, resolving
+     * every enum-valued field — a bare {@code E} or a {@code List<E>} — through its own field
+     * descriptor: {@code case "coverage" -> $coverage.fromStorage(storedValue)}.
+     *
+     * <p>One call shape for every enum field, whatever its storage form and wherever its lookup
+     * lives, because {@link datapotter.datahelper.EnumField} holds the resolver. Nothing is
+     * generated here beyond the dispatch itself. This replaces (PRP-34) a private static
+     * {@code Map<String, E>} plus a builder method emitted PER FIELD PER ENTITY, which also forced
+     * each entity to decide {@code uuid()} versus {@code name()} for itself — a decision belonging
+     * to the enum, copied into every consumer of it.
      *
      * <p>The two shapes share one resolver: a list element and a bare field are the same stored
      * string, so {@code resolveEnumFromStorage} is keyed by field name alone and the caller decides
      * whether it is resolving one value or each element of a list.</p>
      *
      * <p>This is the read-side counterpart to {@link datapotter.datahelper.HasUuid#storageValue(Object)}
-     * on write: write is a generic runtime {@code instanceof} check (the concrete value is in hand),
-     * but read only has a {@code Class<?>} handle and a stored String, so the concrete map has to be
-     * generated per field, per entity, at the one place the concrete enum type is statically known.
-     * A lookup miss returns {@code null} — never throws — because an unmatched id means the row was
-     * written by newer code, not that it is corrupt.
+     * on write: write is a generic runtime {@code instanceof} check, the concrete value being in
+     * hand, while read has only a stored String. A lookup miss returns {@code null} — never throws —
+     * because an unmatched id means the row was written by newer code, not that it is corrupt.
      *
      * <p>Emitted on whichever generated type is the one a value is read INTO: the {@code _A} sealed
      * base on the {@code @Data} and {@code @ArcadeData} paths, and the {@code _I} writable interface
-     * on the {@code @DataHelper} path, which has no class of its own. An interface target only
-     * changes modifiers — its fields are implicitly {@code public static final} — so both paths get
-     * the same lookup. Every path needs it: an embedded block is a {@code @Data} type, and a
+     * on the {@code @DataHelper} path, which has no class of its own. {@code isInterface} now only
+     * picks the method modifiers. The descriptors themselves are on {@code _IR} and reach both by
+     * inheritance. Every path needs this: an embedded block is a {@code @Data} type, and a
      * {@code @DataHelper} DTO reads back through {@code fromMap}/{@code fromJson} like any other.
      */
     public static void addEnumSupport(TypeSpec.Builder builder, List<FieldInfo> fields, boolean isInterface) {
         List<FieldInfo> enumFields = fields.stream().filter(FieldInfo::isAnyEnum).toList();
         if (enumFields.isEmpty()) return;
-
-        ClassName mapClass = ClassName.get(Map.class);
-        ClassName hashMapClass = ClassName.get(HashMap.class);
-        ClassName stringClass = ClassName.get(String.class);
-        Modifier[] fieldModifiers = isInterface
-                ? new Modifier[]{Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL}
-                : new Modifier[]{Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL};
-
-        for (FieldInfo f : enumFields) {
-            TypeName enumType = getRawType(f.enumType);
-            String cap = ProcessorUtils.capitalize(f.name);
-            String builderMethodName = "$build" + cap + "EnumMap";
-            String mapFieldName = "$" + f.name + "$ENUM_MAP";
-            String keyAccessor = f.isEnumAsUuid ? "uuid" : "name";
-            ParameterizedTypeName mapType = ParameterizedTypeName.get(mapClass, stringClass, enumType);
-
-            builder.addMethod(MethodSpec.methodBuilder(builderMethodName)
-                    .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
-                    .returns(mapType)
-                    .addStatement("var m = new $T<$T, $T>()", hashMapClass, stringClass, enumType)
-                    .addStatement("for ($T c : $T.values()) m.put(c.$N(), c)", enumType, enumType, keyAccessor)
-                    .addStatement("return m")
-                    .build());
-
-            builder.addField(FieldSpec.builder(mapType, mapFieldName, fieldModifiers)
-                    .initializer("$N()", builderMethodName)
-                    .build());
-        }
 
         builder.addMethod(booleanFieldPredicate("isEnumField", fields, f -> f.isEnum, isInterface));
         builder.addMethod(booleanFieldPredicate("isEnumListField", fields, f -> f.isEnumList, isInterface));
@@ -888,7 +886,7 @@ public class CodeGeneratorUtils {
         CodeBlock.Builder sw = CodeBlock.builder();
         sw.add("return switch (propertyName) {\n").indent();
         for (FieldInfo f : enumFields) {
-            sw.add("case $S -> $N.get(storedValue);\n", f.name, "$" + f.name + "$ENUM_MAP");
+            sw.add("case $S -> $N.fromStorage(storedValue);\n", f.name, "$" + f.name);
         }
         sw.add("default -> null;\n").unindent().add("};");
         resolve.addCode(sw.build());
