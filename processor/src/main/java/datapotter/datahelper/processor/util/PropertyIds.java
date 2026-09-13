@@ -11,7 +11,7 @@ import java.util.List;
  *
  * <p><b>This is the ONE implementation, shared by construction rather than by discipline.</b> The
  * base processor's {@code PropertyIdProcessor} calls it to validate every {@code @P}; the ArcadeData
- * processor calls it to validate {@code @ArcadeData(uuid=...)} and to mint the id printed in a
+ * processor calls it to validate {@code @ArcadeData(id=...)} and to mint the id printed in a
  * {@code requireIds} error; {@link #main} is the same logic exposed as {@code datapotter-id} for
  * bulk and scripted use. Two implementations would drift, and a drift here is a build that accepts
  * an id the other half rejects.
