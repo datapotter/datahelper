@@ -205,6 +205,10 @@ public class FieldAnalyzer {
                     fi.isEnumAsUuid = isEnumAsUuid;
                     fi.isEnumAsName = isEnumAsName;
                     fi.isEnumGenerated = isEnumGenerated;
+
+                    datapotter.datahelper.P p = field.getAnnotation(datapotter.datahelper.P.class);
+                    fi.stableId = p == null ? null : p.value();
+
                     fields.add(fi);
                 }
             }

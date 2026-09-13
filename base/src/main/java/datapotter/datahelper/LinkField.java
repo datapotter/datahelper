@@ -26,6 +26,7 @@ public final class LinkField<PARENT extends DataHelper_I<PARENT>,
     private final String name;
     private final Class<TARGET> type;
     private final List<Field_I<TARGET, ?>> targetFields;
+    private final String stableId;
 
     /**
      * @param name         the field name
@@ -33,9 +34,15 @@ public final class LinkField<PARENT extends DataHelper_I<PARENT>,
      * @param targetFields the target type's static FIELDS list (e.g. {@code Customer_A.FIELDS})
      */
     public LinkField(String name, Class<TARGET> type, List<Field_I<TARGET, ?>> targetFields) {
+        this(name, type, targetFields, null);
+    }
+
+    /** @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified. */
+    public LinkField(String name, Class<TARGET> type, List<Field_I<TARGET, ?>> targetFields, String stableId) {
         this.name = name;
         this.type = type;
         this.targetFields = targetFields;
+        this.stableId = stableId;
         this.__ = name();
     }
 
@@ -48,6 +55,7 @@ public final class LinkField<PARENT extends DataHelper_I<PARENT>,
 
     /** The <em>target</em> entity type (the thing linked to), e.g. {@code Customer.class}. */
     @Override public Class<TARGET> type() { return type; }
+    @Override public String stableId() { return stableId; }
 
     /** The target type's FIELDS list, for zero-reflection schema constraint / projection. */
     public List<Field_I<TARGET, ?>> targetFields() { return targetFields; }

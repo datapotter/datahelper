@@ -43,6 +43,7 @@ public final class MapDataField<PARENT extends DataHelper_I<PARENT>,
     private final Class<K> keyType;
     private final Class<V> valueType;
     private final List<Field_I<V, ?>> valueFields;
+    private final String stableId;
 
     /**
      * Constructor with key type, value type, and value fields reference.
@@ -54,10 +55,19 @@ public final class MapDataField<PARENT extends DataHelper_I<PARENT>,
      * @param valueFields the static FIELDS list from value type (e.g., EmployeeDTO_A.FIELDS)
      */
     public MapDataField(String name, Class<K> keyType, Class<V> valueType, List<Field_I<V, ?>> valueFields) {
+        this(name, keyType, valueType, valueFields, null);
+    }
+
+    /**
+     * @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified.
+     */
+    public MapDataField(String name, Class<K> keyType, Class<V> valueType, List<Field_I<V, ?>> valueFields,
+                         String stableId) {
         this.name = name;
         this.keyType = keyType;
         this.valueType = valueType;
         this.valueFields = valueFields;
+        this.stableId = stableId;
     }
 
     /**
@@ -75,6 +85,11 @@ public final class MapDataField<PARENT extends DataHelper_I<PARENT>,
     @Override
     public String name() {
         return name;
+    }
+
+    @Override
+    public String stableId() {
+        return stableId;
     }
 
     @Override

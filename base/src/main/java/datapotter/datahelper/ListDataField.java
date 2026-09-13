@@ -37,6 +37,7 @@ public final class ListDataField<PARENT extends DataHelper_I<PARENT>,
     private final String name;
     private final Class<ELEMENT> elementType;
     private final List<Field_I<ELEMENT, ?>> elementFields;
+    private final String stableId;
 
     /**
      * Constructor with element type and fields reference.
@@ -47,9 +48,18 @@ public final class ListDataField<PARENT extends DataHelper_I<PARENT>,
      * @param elementFields the static FIELDS list from element type (e.g., PhoneNumberDTO_A.FIELDS)
      */
     public ListDataField(String name, Class<ELEMENT> elementType, List<Field_I<ELEMENT, ?>> elementFields) {
+        this(name, elementType, elementFields, null);
+    }
+
+    /**
+     * @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified.
+     */
+    public ListDataField(String name, Class<ELEMENT> elementType, List<Field_I<ELEMENT, ?>> elementFields,
+                          String stableId) {
         this.name = name;
         this.elementType = elementType;
         this.elementFields = elementFields;
+        this.stableId = stableId;
     }
 
     /**
@@ -66,6 +76,11 @@ public final class ListDataField<PARENT extends DataHelper_I<PARENT>,
     @Override
     public String name() {
         return name;
+    }
+
+    @Override
+    public String stableId() {
+        return stableId;
     }
 
     @Override

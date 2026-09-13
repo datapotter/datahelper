@@ -41,13 +41,20 @@ public final class Field<E extends DataHelper_I<E>, T>
     
     public final String __ /*name*/;
     private final Class<T> type;
+    private final String stableId;
 
     public Field(String name, Class<T> type) {
-        this.__ /*this.name*/ = name; this.type = type;
+        this(name, type, null);
+    }
+
+    /** @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified. */
+    public Field(String name, Class<T> type, String stableId) {
+        this.__ /*this.name*/ = name; this.type = type; this.stableId = stableId;
     }
 
     @Override public String name() { return __ ;/*name;*/ }
     @Override public Class<T> type() { return type; }
+    @Override public String stableId() { return stableId; }
 
     
     

@@ -68,6 +68,15 @@ public class FieldInfo {
     /** Any enum-valued shape: a bare enum field or a list of them. */
     public boolean isAnyEnum() { return isEnum || isEnumList; }
 
+    // ===== Stable identity (PRP-28 phase 2) — set by FieldAnalyzer after construction =====
+    /**
+     * The field's {@code @P} value, or {@code null} if it carries none. Format (length, alphabet,
+     * check character) and uniqueness within the enclosing type are validated independently by
+     * {@code PropertyIdProcessor}, at the field's own declaration — this is simply the literal, for
+     * code generation to embed via the field symbol's {@code stableId()}.
+     */
+    public String stableId;
+
     /**
      * Whether the stored value is resolved by the enum's own generated {@code Foo_I.fromStorage}
      * rather than by a lookup this entity builds for itself (PRP-34).

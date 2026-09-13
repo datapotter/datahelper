@@ -20,18 +20,21 @@ public final class EnumListField<E extends DataHelper_I<E>, T extends Enum<T>>
     private final String name;
     private final Class<T> elementType;
     private final Function<String, T> resolver;
+    private final String stableId;
 
     /** The field name, for the terse {@code $field.__} form the other descriptors also carry. */
     public final String __;
 
-    private EnumListField(String name, Class<T> elementType, Function<String, T> resolver) {
+    private EnumListField(String name, Class<T> elementType, Function<String, T> resolver, String stableId) {
         this.name = name;
         this.elementType = elementType;
         this.resolver = resolver;
+        this.stableId = stableId;
         this.__ = name;
     }
 
     @Override public String name() { return name; }
+    @Override public String stableId() { return stableId; }
 
     @SuppressWarnings("unchecked")
     @Override public Class<List<T>> type() { return (Class<List<T>>) (Class<?>) List.class; }
@@ -47,19 +50,38 @@ public final class EnumListField<E extends DataHelper_I<E>, T extends Enum<T>>
     /** For an {@code @EnumData} element enum: resolve through its own generated {@code fromStorage}. */
     public static <E extends DataHelper_I<E>, T extends Enum<T>>
     EnumListField<E, T> generated(String name, Class<T> elementType, Function<String, T> fromStorage) {
-        return new EnumListField<>(name, elementType, fromStorage);
+        return generated(name, elementType, fromStorage, null);
+    }
+
+    /** @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified. */
+    public static <E extends DataHelper_I<E>, T extends Enum<T>>
+    EnumListField<E, T> generated(String name, Class<T> elementType, Function<String, T> fromStorage,
+                                   String stableId) {
+        return new EnumListField<>(name, elementType, fromStorage, stableId);
     }
 
     /** For a plain {@code @AsUuid} element enum: index the given constants by {@link HasUuid#uuid()}. */
     public static <E extends DataHelper_I<E>, T extends Enum<T> & HasUuid>
     EnumListField<E, T> byUuid(String name, Class<T> elementType, T[] constants) {
-        return new EnumListField<>(name, elementType, EnumField.index(constants, HasUuid::uuid));
+        return byUuid(name, elementType, constants, null);
+    }
+
+    /** @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified. */
+    public static <E extends DataHelper_I<E>, T extends Enum<T> & HasUuid>
+    EnumListField<E, T> byUuid(String name, Class<T> elementType, T[] constants, String stableId) {
+        return new EnumListField<>(name, elementType, EnumField.index(constants, HasUuid::uuid), stableId);
     }
 
     /** For a plain {@code @AsName} element enum: index the given constants by {@link Enum#name()}. */
     public static <E extends DataHelper_I<E>, T extends Enum<T>>
     EnumListField<E, T> byName(String name, Class<T> elementType, T[] constants) {
-        return new EnumListField<>(name, elementType, EnumField.index(constants, Enum::name));
+        return byName(name, elementType, constants, null);
+    }
+
+    /** @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified. */
+    public static <E extends DataHelper_I<E>, T extends Enum<T>>
+    EnumListField<E, T> byName(String name, Class<T> elementType, T[] constants, String stableId) {
+        return new EnumListField<>(name, elementType, EnumField.index(constants, Enum::name), stableId);
     }
 
     @Override

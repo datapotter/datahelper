@@ -89,15 +89,18 @@ public class CodeGeneratorUtils {
                     boxedFieldType
                 );
 
-                FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
-                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class, $L)",
-                            ClassName.get(DataField.class),
-                            field.name,
-                            rawFieldType,
-                            fieldsRef(rawFieldType, fieldsHostSuffix))
-                        .build();
-                builder.addField(symbol);
+                FieldSpec.Builder sb = FieldSpec.builder(fieldGenericType, symbolName,
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
+                if (field.stableId == null) {
+                    sb.initializer("new $T($S, $T.class, $L)",
+                        ClassName.get(DataField.class), field.name, rawFieldType,
+                        fieldsRef(rawFieldType, fieldsHostSuffix));
+                } else {
+                    sb.initializer("new $T($S, $T.class, $L, $S)",
+                        ClassName.get(DataField.class), field.name, rawFieldType,
+                        fieldsRef(rawFieldType, fieldsHostSuffix), field.stableId);
+                }
+                builder.addField(sb.build());
             } else if (field.isListOfDataHelper && field.isListElementGenerated) {
                 // Use ListDataField for List<DataHelper> types
                 TypeName elementType = field.listElementType;
@@ -107,15 +110,18 @@ public class CodeGeneratorUtils {
                     elementType
                 );
 
-                FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
-                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class, $L)",
-                            ClassName.get(ListDataField.class),
-                            field.name,
-                            elementType,
-                            fieldsRef(elementType, fieldsHostSuffix))
-                        .build();
-                builder.addField(symbol);
+                FieldSpec.Builder sb = FieldSpec.builder(fieldGenericType, symbolName,
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
+                if (field.stableId == null) {
+                    sb.initializer("new $T($S, $T.class, $L)",
+                        ClassName.get(ListDataField.class), field.name, elementType,
+                        fieldsRef(elementType, fieldsHostSuffix));
+                } else {
+                    sb.initializer("new $T($S, $T.class, $L, $S)",
+                        ClassName.get(ListDataField.class), field.name, elementType,
+                        fieldsRef(elementType, fieldsHostSuffix), field.stableId);
+                }
+                builder.addField(sb.build());
             } else if (field.isMapOfDataHelper && field.isMapValueGenerated) {
                 // Use MapDataField for Map<K, DataHelper> types
                 TypeName keyType = field.mapKeyType;
@@ -127,16 +133,18 @@ public class CodeGeneratorUtils {
                     valueType
                 );
 
-                FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
-                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class, $T.class, $L)",
-                            ClassName.get(MapDataField.class),
-                            field.name,
-                            keyType,
-                            valueType,
-                            fieldsRef(valueType, fieldsHostSuffix))
-                        .build();
-                builder.addField(symbol);
+                FieldSpec.Builder sb = FieldSpec.builder(fieldGenericType, symbolName,
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
+                if (field.stableId == null) {
+                    sb.initializer("new $T($S, $T.class, $T.class, $L)",
+                        ClassName.get(MapDataField.class), field.name, keyType, valueType,
+                        fieldsRef(valueType, fieldsHostSuffix));
+                } else {
+                    sb.initializer("new $T($S, $T.class, $T.class, $L, $S)",
+                        ClassName.get(MapDataField.class), field.name, keyType, valueType,
+                        fieldsRef(valueType, fieldsHostSuffix), field.stableId);
+                }
+                builder.addField(sb.build());
             } else if (field.isLink) {
                 // Reference (LINK): symbol is LinkField<Owner, Target>; value carrier is Link<Target>.
                 TypeName target = getRawType(field.linkTargetType);
@@ -144,11 +152,17 @@ public class CodeGeneratorUtils {
                     ClassName.get(LinkField.class), ClassName.get(packageName, className), field.linkTargetType);
                 FieldSpec.Builder sb = FieldSpec.builder(symType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
-                if (field.isLinkTargetGenerated) {
+                if (field.isLinkTargetGenerated && field.stableId == null) {
                     sb.initializer("new $T($S, $T.class, $L)",
                         ClassName.get(LinkField.class), field.name, target, fieldsRef(target, fieldsHostSuffix));
-                } else {
+                } else if (field.isLinkTargetGenerated) {
+                    sb.initializer("new $T($S, $T.class, $L, $S)",
+                        ClassName.get(LinkField.class), field.name, target, fieldsRef(target, fieldsHostSuffix), field.stableId);
+                } else if (field.stableId == null) {
                     sb.initializer("new $T($S, $T.class)", ClassName.get(LinkField.class), field.name, target);
+                } else {
+                    sb.initializer("new $T($S, $T.class, $T.emptyList(), $S)",
+                        ClassName.get(LinkField.class), field.name, target, ClassName.get("java.util", "Collections"), field.stableId);
                 }
                 builder.addField(sb.build());
             } else if (field.isLinkList) {
@@ -158,11 +172,17 @@ public class CodeGeneratorUtils {
                     ClassName.get(LinkListField.class), ClassName.get(packageName, className), field.linkTargetType);
                 FieldSpec.Builder sb = FieldSpec.builder(symType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
-                if (field.isLinkTargetGenerated) {
+                if (field.isLinkTargetGenerated && field.stableId == null) {
                     sb.initializer("new $T($S, $T.class, $L)",
                         ClassName.get(LinkListField.class), field.name, element, fieldsRef(element, fieldsHostSuffix));
-                } else {
+                } else if (field.isLinkTargetGenerated) {
+                    sb.initializer("new $T($S, $T.class, $L, $S)",
+                        ClassName.get(LinkListField.class), field.name, element, fieldsRef(element, fieldsHostSuffix), field.stableId);
+                } else if (field.stableId == null) {
                     sb.initializer("new $T($S, $T.class)", ClassName.get(LinkListField.class), field.name, element);
+                } else {
+                    sb.initializer("new $T($S, $T.class, $T.emptyList(), $S)",
+                        ClassName.get(LinkListField.class), field.name, element, ClassName.get("java.util", "Collections"), field.stableId);
                 }
                 builder.addField(sb.build());
             } else if (field.isLinkMap) {
@@ -173,12 +193,17 @@ public class CodeGeneratorUtils {
                     ClassName.get(LinkMapField.class), ClassName.get(packageName, className), key, field.linkTargetType);
                 FieldSpec.Builder sb = FieldSpec.builder(symType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
-                if (field.isLinkTargetGenerated) {
+                if (field.isLinkTargetGenerated && field.stableId == null) {
                     sb.initializer("new $T($S, $T.class, $T.class, $L)",
                         ClassName.get(LinkMapField.class), field.name, key, value, fieldsRef(value, fieldsHostSuffix));
+                } else if (field.isLinkTargetGenerated) {
+                    sb.initializer("new $T($S, $T.class, $T.class, $L, $S)",
+                        ClassName.get(LinkMapField.class), field.name, key, value, fieldsRef(value, fieldsHostSuffix), field.stableId);
+                } else if (field.stableId == null) {
+                    sb.initializer("new $T($S, $T.class, $T.class)", ClassName.get(LinkMapField.class), field.name, key, value);
                 } else {
-                    sb.initializer("new $T($S, $T.class, $T.class)",
-                        ClassName.get(LinkMapField.class), field.name, key, value);
+                    sb.initializer("new $T($S, $T.class, $T.class, $T.emptyList(), $S)",
+                        ClassName.get(LinkMapField.class), field.name, key, value, ClassName.get("java.util", "Collections"), field.stableId);
                 }
                 builder.addField(sb.build());
             } else if (field.isAnyEnum()) {
@@ -191,15 +216,21 @@ public class CodeGeneratorUtils {
 
                 FieldSpec.Builder sb = FieldSpec.builder(symType, symbolName,
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
-                if (field.resolvesThroughEnumData()) {
+                if (field.resolvesThroughEnumData() && field.stableId == null) {
                     sb.initializer("$T.generated($S, $T.class, $T::fromStorage)",
                             symClass, field.name, enumType, ProcessorUtils.enumDataInterface(enumType));
-                } else {
+                } else if (field.resolvesThroughEnumData()) {
+                    sb.initializer("$T.generated($S, $T.class, $T::fromStorage, $S)",
+                            symClass, field.name, enumType, ProcessorUtils.enumDataInterface(enumType), field.stableId);
+                } else if (field.stableId == null) {
                     // values() is a synthetic method, not reflection: passing the constants in keeps
                     // the generic descriptor off Class.getEnumConstants() and safe under TeaVM.
                     sb.initializer("$T.$N($S, $T.class, $T.values())",
+                            symClass, field.isEnumAsUuid ? "byUuid" : "byName", field.name, enumType, enumType);
+                } else {
+                    sb.initializer("$T.$N($S, $T.class, $T.values(), $S)",
                             symClass, field.isEnumAsUuid ? "byUuid" : "byName",
-                            field.name, enumType, enumType);
+                            field.name, enumType, enumType, field.stableId);
                 }
                 builder.addField(sb.build());
             } else {
@@ -210,14 +241,15 @@ public class CodeGeneratorUtils {
                     boxedFieldType
                 );
 
-                FieldSpec symbol = FieldSpec.builder(fieldGenericType, symbolName,
-                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                        .initializer("new $T($S, $T.class)",
-                            ClassName.get(Field.class),
-                            field.name,
-                            rawFieldType)
-                        .build();
-                builder.addField(symbol);
+                FieldSpec.Builder sb = FieldSpec.builder(fieldGenericType, symbolName,
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
+                if (field.stableId == null) {
+                    sb.initializer("new $T($S, $T.class)", ClassName.get(Field.class), field.name, rawFieldType);
+                } else {
+                    sb.initializer("new $T($S, $T.class, $S)",
+                        ClassName.get(Field.class), field.name, rawFieldType, field.stableId);
+                }
+                builder.addField(sb.build());
             }
         }
     }

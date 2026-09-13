@@ -57,6 +57,7 @@ public final class DataField<PARENT extends DataHelper_I<PARENT>,
     private final String name;
     private final Class<NESTED> type;
     private final java.util.List<Field_I<NESTED, ?>> nestedFields;
+    private final String stableId;
 
     /**
      * Constructor with nested fields reference.
@@ -67,9 +68,18 @@ public final class DataField<PARENT extends DataHelper_I<PARENT>,
      * @param nestedFields the static FIELDS list from nested type (e.g., AddressDTO_A.FIELDS)
      */
     public DataField(String name, Class<NESTED> type, java.util.List<Field_I<NESTED, ?>> nestedFields) {
+        this(name, type, nestedFields, null);
+    }
+
+    /**
+     * @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified.
+     */
+    public DataField(String name, Class<NESTED> type, java.util.List<Field_I<NESTED, ?>> nestedFields,
+                      String stableId) {
         this.name = name;
         this.type = type;
         this.nestedFields = nestedFields;
+        this.stableId = stableId;
         this.__ = name();
     }
 
@@ -86,6 +96,7 @@ public final class DataField<PARENT extends DataHelper_I<PARENT>,
 
     @Override public String name() { return name; }
     @Override public Class<NESTED> type() { return type; }
+    @Override public String stableId() { return stableId; }
 
     /**
      * Get the nested type's field list.

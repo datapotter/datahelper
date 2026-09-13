@@ -21,11 +21,19 @@ public final class LinkListField<PARENT extends DataHelper_I<PARENT>,
     private final String name;
     private final Class<TARGET> elementType;
     private final List<Field_I<TARGET, ?>> elementFields;
+    private final String stableId;
 
     public LinkListField(String name, Class<TARGET> elementType, List<Field_I<TARGET, ?>> elementFields) {
+        this(name, elementType, elementFields, null);
+    }
+
+    /** @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified. */
+    public LinkListField(String name, Class<TARGET> elementType, List<Field_I<TARGET, ?>> elementFields,
+                          String stableId) {
         this.name = name;
         this.elementType = elementType;
         this.elementFields = elementFields;
+        this.stableId = stableId;
         this.__ = name();
     }
 
@@ -34,6 +42,7 @@ public final class LinkListField<PARENT extends DataHelper_I<PARENT>,
     }
 
     @Override public String name() { return name; }
+    @Override public String stableId() { return stableId; }
 
     @Override
     @SuppressWarnings("unchecked")

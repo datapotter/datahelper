@@ -25,13 +25,21 @@ public final class LinkMapField<PARENT extends DataHelper_I<PARENT>,
     private final Class<K> keyType;
     private final Class<TARGET> valueType;
     private final List<Field_I<TARGET, ?>> valueFields;
+    private final String stableId;
 
     public LinkMapField(String name, Class<K> keyType, Class<TARGET> valueType,
                         List<Field_I<TARGET, ?>> valueFields) {
+        this(name, keyType, valueType, valueFields, null);
+    }
+
+    /** @param stableId the field's {@code @P} value (PRP-28 phase 2), or {@code null} if unidentified. */
+    public LinkMapField(String name, Class<K> keyType, Class<TARGET> valueType,
+                        List<Field_I<TARGET, ?>> valueFields, String stableId) {
         this.name = name;
         this.keyType = keyType;
         this.valueType = valueType;
         this.valueFields = valueFields;
+        this.stableId = stableId;
         this.__ = name();
     }
 
@@ -40,6 +48,7 @@ public final class LinkMapField<PARENT extends DataHelper_I<PARENT>,
     }
 
     @Override public String name() { return name; }
+    @Override public String stableId() { return stableId; }
 
     @Override
     @SuppressWarnings("unchecked")

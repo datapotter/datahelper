@@ -81,4 +81,22 @@ public sealed interface Field_I<E extends DataHelper_I<E>, T>
         }
         return type().isInstance(value);
     }
+
+    /**
+     * The field's stable identity (PRP-28 phase 2), or {@code null} if it carries none.
+     *
+     * <p>{@code @P} is {@code RetentionPolicy.SOURCE} (in {@code datahelper/annotations}), so it does
+     * not exist at runtime and there is no reflective path back to it — the id has to be carried by
+     * the generated field-symbol instance itself, which is what this method reaches. A {@code default}
+     * returning {@code null} rather than an abstract method: every existing implementation of this
+     * sealed interface, hand-written or already generated, keeps compiling untouched, and {@code null}
+     * for "no identity declared" is the house idiom already used for an unresolved enum id.
+     *
+     * <p>Not named {@code id()}: ArcadeDB already means the record id by that name, and
+     * {@code $outcome.id()} sitting a line away from {@code doc.getIdentity()} would be confusing. Not
+     * {@code uid()}: collides in spirit with {@link HasUuid#uuid()} from phase 1. This name says what
+     * the thing is — an identity that survives a rename — and is backend-neutral, which matters because
+     * the annotation lives in {@code datahelper}, not in any one backend.
+     */
+    default String stableId() { return null; }
 }
