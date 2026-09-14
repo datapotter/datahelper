@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.github.datapotter</groupId>
         <artifactId>datapotter-datahelper</artifactId>
-        <version>2.0-SNAPSHOT</version>
+        <version>2.0</version>
     </parent>
 
     <artifactId>datapotter-datahelper-processor</artifactId>

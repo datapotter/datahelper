@@ -3,11 +3,34 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.github.datapotter</groupId>
     <artifactId>datapotter-datahelper</artifactId>
-    <version>2.0-SNAPSHOT</version>
+    <version>2.0</version>
     <packaging>pom</packaging>
 
     <name>DataPotter DataHelper (parent)</name>
     <description>The backend-agnostic core: annotations, base runtime, JSON trait, annotation processor.</description>
+    <url>https://github.com/datapotter/datahelper</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>datapotter</id>
+            <name>Ivan Velikanov</name>
+            <email>ivan.velikanov.dev@gmail.com</email>
+            <url>https://github.com/datapotter</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/datapotter/datahelper.git</connection>
+        <developerConnection>scm:git:ssh://github.com:datapotter/datahelper.git</developerConnection>
+        <url>https://github.com/datapotter/datahelper</url>
+    </scm>
 
     <!--
       ONE VERSION FOR THESE FOUR, because they genuinely do move in lockstep — the changelogs say so
@@ -33,4 +56,55 @@
         <module>json</module>
         <module>processor</module>
     </modules>
+
+    <!--
+      The parent is itself a published artifact: every module names it as <parent>, so a consumer
+      that cannot resolve this pom cannot resolve any module. It therefore needs the same signing
+      and publishing wiring the modules have. Without it the deploy phase falls through to
+      maven-deploy-plugin, which has no distributionManagement and fails the reactor before a
+      single module is uploaded.
+    -->
+    <profiles>
+        <profile>
+            <id>release</id>
+            <activation>
+                <property><name>org.name</name></property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals><goal>sign</goal></goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <keyname>${org.gpg.keyname}</keyname>
+                            <passphrase>${org.gpg.passphrase}</passphrase>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.9.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>${org.publishing.server.id}</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>published</waitUntil>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
